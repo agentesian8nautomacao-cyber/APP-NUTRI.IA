@@ -1,0 +1,8 @@
+{
+  "name": "2",
+  "description": "An AI-powered nutrition assistant that generates personalized meal plans, analyzes food photos, and tracks your dietary habits.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
