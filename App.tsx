@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile, DailyPlan, LogItem, MealItem, WellnessState, AppView, ScanHistoryItem } from './types';
 import { generateDietPlan, generateFoodImageAI } from './services/geminiService';
+import { supabase } from './services/supabaseClient';
 
 // Components
 import LandingPage from './components/LandingPage';
@@ -77,6 +78,28 @@ const App: React.FC = () => {
           return () => clearInterval(interval);
       }
   }, [isGenerating]);
+
+  // Teste de conexão com Supabase (remova depois de testar)
+  useEffect(() => {
+      const testSupabaseConnection = async () => {
+          try {
+              const { data, error } = await supabase
+                  .from('challenges')
+                  .select('*')
+                  .limit(1);
+              
+              if (error) {
+                  console.error('❌ Erro Supabase:', error);
+              } else {
+                  console.log('✅ Supabase conectado! Desafios encontrados:', data?.length);
+              }
+          } catch (err) {
+              console.error('❌ Erro ao conectar com Supabase:', err);
+          }
+      };
+      
+      testSupabaseConnection();
+  }, []);
 
   // --- Handlers ---
 

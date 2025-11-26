@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality, Blob, Type, FunctionDeclaration } from "@google/genai";
 import { X, Mic, MicOff, PhoneOff, Activity, CheckCircle2 } from 'lucide-react';
 import { UserProfile, DailyPlan, LogItem, MealItem } from '../types';
+import { authService, limitsService } from '../services/supabaseService';
 
 interface LiveConversationProps {
   onClose: () => void;
@@ -18,6 +19,7 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
   const [volume, setVolume] = useState(0);
   const [status, setStatus] = useState("Conectando...");
   const [loggedItem, setLoggedItem] = useState<string | null>(null);
+  const [limitReached, setLimitReached] = useState<string | null>(null);
 
   // Audio Contexts
   const inputAudioContextRef = useRef<AudioContext | null>(null);
@@ -149,8 +151,10 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
               sourceRef.current = inputAudioContextRef.current.createMediaStreamSource(streamRef.current);
               scriptProcessorRef.current = inputAudioContextRef.current.createScriptProcessor(4096, 1, 1);
               
-              scriptProcessorRef.current.onaudioprocess = (e) => {
+              scriptProcessorRef.current.onaudioprocess = async (e) => {
                 if (!isMicOn) return; // Mute logic
+                if (limitReached) return; // Limite atingido, não enviar mais áudio
+
                 const inputData = e.inputBuffer.getChannelData(0);
                 
                 // Simple volume meter logic
@@ -158,10 +162,34 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
                 for(let i=0; i<inputData.length; i++) sum += inputData[i] * inputData[i];
                 setVolume(Math.sqrt(sum / inputData.length) * 100);
 
-                const pcmBlob = createBlob(inputData);
-                sessionPromise.then(session => {
-                  session.sendRealtimeInput({ media: pcmBlob });
-                });
+                // Cada callback ~ 4096 samples @16kHz ≈ 0.256s de áudio
+                const approxSeconds = 0.26;
+
+                try {
+                  const user = await authService.getCurrentUser();
+                  if (!user) return;
+
+                  await limitsService.consumeVoiceSeconds(user.id, approxSeconds);
+
+                  const pcmBlob = createBlob(inputData);
+                  sessionPromise.then(session => {
+                    session.sendRealtimeInput({ media: pcmBlob });
+                  });
+                } catch (err: any) {
+                  if (err instanceof Error && err.message === 'VOICE_LIMIT_REACHED') {
+                    setLimitReached(
+                      'Limite diário atingido. Gerencie sua conta em nosso site.'
+                    );
+                    setStatus('Limite atingido');
+                    setIsMicOn(false);
+                    // Encerra a sessão de áudio
+                    sessionPromise.then(session => {
+                      session.close();
+                    }).catch(() => {});
+                  } else {
+                    console.error('Erro ao consumir limite de voz:', err);
+                  }
+                }
               };
 
               sourceRef.current.connect(scriptProcessorRef.current);
@@ -325,6 +353,11 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
 
           <h2 className="mt-8 text-3xl font-serif text-[#F5F1E8]">Nutri.ai</h2>
           <p className="text-[#F5F1E8]/60 mt-2">Assistente Pessoal</p>
+          {limitReached && (
+            <p className="mt-4 max-w-md text-center text-sm font-semibold text-yellow-200 bg-yellow-900/40 px-4 py-2 rounded-2xl">
+              {limitReached}
+            </p>
+          )}
        </div>
 
        {/* Controls */}

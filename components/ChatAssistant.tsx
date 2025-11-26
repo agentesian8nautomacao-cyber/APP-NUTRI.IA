@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Send, X, Bot, Globe, BrainCircuit, Mic, StopCircle, Loader2, Phone, ChefHat, Sparkles } from 'lucide-react';
 import { ChatMessage, UserProfile, DailyPlan, LogItem, MealItem } from '../types';
 import { chatWithNutritionist, transcribeAudio } from '../services/geminiService';
+import { authService, limitsService } from '../services/supabaseService';
 
 interface ChatAssistantProps {
   onClose: () => void;
@@ -158,6 +159,26 @@ const ChatAssistant: React.FC<ChatAssistantProps> = ({ onClose, onLiveCall, user
     setIsLoading(true);
 
     try {
+      // Rate limit de texto por usuário
+      const user = await authService.getCurrentUser();
+      if (user) {
+        try {
+          await limitsService.registerTextMessage(user.id);
+        } catch (err: any) {
+          if (err instanceof Error && err.message === 'TEXT_LIMIT_REACHED') {
+            const limitMsg: ChatMessage = {
+              id: Date.now().toString() + '_limit',
+              role: 'model',
+              text: '⚠️ **Limite de segurança diário atingido.**\n\nVocê já enviou o número máximo de mensagens de hoje.',
+              timestamp: Date.now(),
+            };
+            setMessages(prev => [...prev, limitMsg]);
+            return;
+          }
+          console.error('Erro ao registrar mensagem de texto:', err);
+        }
+      }
+
       const history = messages.map(m => ({
         role: m.role,
         parts: [{ text: m.text }]

@@ -1,7 +1,8 @@
 
-import React, { useRef } from 'react';
-import { UserProfile, Gender, ActivityLevel, Goal } from '../types';
-import { ArrowLeft, Camera, User, Upload } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { UserProfile } from '../types';
+import { ArrowLeft, Camera, User, Upload, Trash2 } from 'lucide-react';
+import { authService, limitsService } from '../services/supabaseService';
 
 interface ProfileViewProps {
   user: UserProfile;
@@ -12,6 +13,8 @@ interface ProfileViewProps {
 const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => {
   const chefInputRef = useRef<HTMLInputElement>(null);
   const userInputRef = useRef<HTMLInputElement>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const handleChefImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -41,6 +44,34 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => 
       <div className="text-lg font-serif text-[#1A4D2E]">{value}</div>
     </div>
   );
+
+  const handleDeleteAccount = async () => {
+    const confirmed = window.confirm(
+      'Tem certeza que deseja excluir sua conta? Esta ação é permanente e não poderá ser desfeita.'
+    );
+    if (!confirmed) return;
+
+    setIsDeleting(true);
+    setDeleteError(null);
+
+    try {
+      const userAuth = await authService.getCurrentUser();
+      if (!userAuth) {
+        setDeleteError('Usuário não autenticado.');
+        setIsDeleting(false);
+        return;
+      }
+
+      await limitsService.deleteAccount(userAuth.id);
+      await authService.signOut();
+      window.location.reload();
+    } catch (err: any) {
+      console.error('Erro ao excluir conta:', err);
+      setDeleteError('Ocorreu um erro ao excluir sua conta. Tente novamente mais tarde.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   return (
     <div className="p-6 pb-28 min-h-screen bg-[#F5F1E8] animate-in slide-in-from-right duration-500">
@@ -155,6 +186,28 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => 
                     <p className="text-[#1A4D2E]">{user.medicalHistory || "Não informado"}</p>
                 </div>
             </div>
+        </div>
+
+        {/* Account Deletion */}
+        <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-red-200 space-y-3">
+          <h3 className="font-serif text-xl text-red-700 mb-1 flex items-center gap-2">
+            <Trash2 size={20} /> Excluir minha conta
+          </h3>
+          <p className="text-sm text-[#4F6F52]">
+            Esta ação irá apagar permanentemente seus dados de histórico de chat, registros de alimentação e seu perfil.
+          </p>
+          {deleteError && (
+            <p className="text-sm text-red-600 font-medium">{deleteError}</p>
+          )}
+          <button
+            onClick={handleDeleteAccount}
+            disabled={isDeleting}
+            className="mt-2 inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold
+                       border border-red-500 text-red-600 hover:bg-red-50 disabled:opacity-60"
+          >
+            <Trash2 size={14} />
+            {isDeleting ? 'Excluindo...' : 'Excluir minha conta'}
+          </button>
         </div>
       </div>
     </div>
