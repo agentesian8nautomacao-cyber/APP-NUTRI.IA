@@ -6,6 +6,8 @@ import { supabase } from './services/supabaseClient';
 
 // Components
 import LandingPage from './components/LandingPage';
+import InviteCodeEntry from './components/InviteCodeEntry';
+import LoginOrRegister from './components/LoginOrRegister';
 import Onboarding from './components/Onboarding';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
@@ -21,6 +23,7 @@ import Library from './components/Library';
 import ChatAssistant from './components/ChatAssistant';
 import LiveConversation from './components/LiveConversation';
 import ProfileView from './components/ProfileView';
+import { authService } from './services/supabaseService';
 
 import { MessageCircle, Camera, Home, Menu, BookOpen, Phone, User } from 'lucide-react';
 
@@ -29,6 +32,8 @@ const App: React.FC = () => {
   const [view, setView] = useState<AppView>('landing');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [validatedInviteCode, setValidatedInviteCode] = useState<string | null>(null);
 
   // Swipe Gesture State
   const [touchStart, setTouchStart] = useState<{x: number, y: number} | null>(null);
@@ -79,26 +84,58 @@ const App: React.FC = () => {
       }
   }, [isGenerating]);
 
-  // Teste de conexão com Supabase (remova depois de testar)
+  // Verificar autenticação ao carregar o app
   useEffect(() => {
-      const testSupabaseConnection = async () => {
+      const checkAuth = async () => {
+          setIsCheckingAuth(true);
           try {
-              const { data, error } = await supabase
-                  .from('challenges')
-                  .select('*')
-                  .limit(1);
+              const { data: { session } } = await supabase.auth.getSession();
               
-              if (error) {
-                  console.error('❌ Erro Supabase:', error);
+              if (session?.user) {
+                  // Usuário já está logado, carregar perfil e ir para dashboard
+                  const profile = await authService.getCurrentUserProfile();
+                  if (profile) {
+                      setUserProfile(profile);
+                      setView('dashboard');
+                  } else {
+                      // Usuário logado mas sem perfil, precisa fazer onboarding
+                      setView('onboarding');
+                  }
               } else {
-                  console.log('✅ Supabase conectado! Desafios encontrados:', data?.length);
+                  // Usuário não está logado, mostrar tela de cupom
+                  setView('invite_code');
               }
           } catch (err) {
-              console.error('❌ Erro ao conectar com Supabase:', err);
+              console.error('❌ Erro ao verificar autenticação:', err);
+              setView('invite_code');
+          } finally {
+              setIsCheckingAuth(false);
           }
       };
       
-      testSupabaseConnection();
+      checkAuth();
+
+      // Escutar mudanças de autenticação
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+          if (event === 'SIGNED_IN' && session?.user) {
+              const profile = await authService.getCurrentUserProfile();
+              if (profile) {
+                  setUserProfile(profile);
+                  if (view === 'login_register') {
+                      // Se acabou de fazer login/cadastro, verificar se tem perfil
+                      // Se não tiver, ir para onboarding
+                      setView('onboarding');
+                  }
+              }
+          } else if (event === 'SIGNED_OUT') {
+              setUserProfile(null);
+              setView('invite_code');
+          }
+      });
+
+      return () => {
+          subscription.unsubscribe();
+      };
   }, []);
 
   // --- Handlers ---
@@ -207,8 +244,68 @@ const App: React.FC = () => {
 
   // --- View Rendering ---
 
+  // Loading state enquanto verifica autenticação
+  if (isCheckingAuth) {
+      return (
+          <div className="min-h-screen bg-[#F5F1E8] flex items-center justify-center">
+              <div className="text-center">
+                  <div className="text-6xl mb-4 animate-bounce">🍎</div>
+                  <p className="text-[#4F6F52] font-medium">Carregando...</p>
+              </div>
+          </div>
+      );
+  }
+
+  // Fluxo de primeiro acesso: Cupom → Login/Cadastro → Onboarding
+  if (view === 'invite_code') {
+      return (
+          <InviteCodeEntry
+              onCodeValid={(code) => {
+                  setValidatedInviteCode(code);
+                  setView('login_register');
+              }}
+              onBack={() => setView('landing')}
+          />
+      );
+  }
+
+  if (view === 'login_register') {
+      return (
+          <LoginOrRegister
+              inviteCode={validatedInviteCode || undefined}
+              onComplete={async () => {
+                  // Verificar se o usuário tem perfil
+                  const profile = await authService.getCurrentUserProfile();
+                  if (profile) {
+                      setUserProfile(profile);
+                      setView('dashboard');
+                  } else {
+                      setView('onboarding');
+                  }
+              }}
+              onBack={() => {
+                  if (validatedInviteCode) {
+                      setValidatedInviteCode(null);
+                      setView('invite_code');
+                  } else {
+                      setView('landing');
+                  }
+              }}
+          />
+      );
+  }
+
   if (view === 'landing') {
-      return <LandingPage onGetStarted={() => setView('onboarding')} onAnalyze={() => setIsScannerOpen(true)} />;
+      return (
+          <LandingPage 
+              onGetStarted={() => setView('invite_code')} 
+              onAnalyze={() => {
+                  // "Já tenho conta" - ir direto para login (sem cupom)
+                  setValidatedInviteCode(null);
+                  setView('login_register');
+              }} 
+          />
+      );
   }
 
   if (view === 'onboarding') {

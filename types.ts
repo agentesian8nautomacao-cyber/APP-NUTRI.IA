@@ -121,6 +121,8 @@ export interface Article {
 
 export type AppView = 
   | 'landing'
+  | 'invite_code'      // Nova tela: entrada de código de convite
+  | 'login_register'   // Nova tela: login ou cadastro após validar cupom
   | 'onboarding' 
   | 'generating' 
   | 'diet_plan'

@@ -139,7 +139,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze }) =>
                             onClick={onGetStarted}
                             className="w-full bg-[#1A4D2E] text-[#F5F1E8] py-5 rounded-[2rem] font-serif text-xl shadow-xl hover:shadow-2xl hover:scale-[1.02] hover:bg-[#143d24] transition-all duration-300 flex items-center justify-center gap-2 group"
                         >
-                            <span>Começar Agora</span>
+                            <span>Inserir Código de Convite</span>
                             <Sparkles size={18} className="group-hover:rotate-180 transition-transform duration-500 text-yellow-400" />
                         </button>
 

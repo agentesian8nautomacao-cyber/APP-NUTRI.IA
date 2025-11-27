@@ -142,6 +142,30 @@ export const authService = {
       callback(session?.user || null);
     });
   },
+
+  // Obter perfil do usuário atual
+  async getCurrentUserProfile(): Promise<UserProfile | null> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') return null; // Não encontrado
+        throw error;
+      }
+
+      return userProfileFromDB(data);
+    } catch (err) {
+      console.error('Erro ao buscar perfil do usuário:', err);
+      return null;
+    }
+  },
 };
 
 // ============================================
@@ -169,6 +193,7 @@ interface Coupon {
 
 export const couponService = {
   // Buscar e validar cupom (existência, ativo e com uso disponível)
+  // Também verifica se o cupom está vinculado a um pagamento Cakto ativo
   async validateCoupon(code: string): Promise<Coupon> {
     const normalized = code.trim();
     if (!normalized) {
@@ -190,6 +215,43 @@ export const couponService = {
 
     if (data.current_uses >= data.max_uses) {
       throw new Error('CUPOM_ESGOTADO');
+    }
+
+    // Verificar se o cupom está vinculado a um pagamento Cakto
+    // Se estiver, verificar se o pagamento está ativo e tem contas disponíveis
+    if (data.cakto_customer_id) {
+      // Verificar se o pagamento está ativo
+      const { data: paymentProfile, error: paymentError } = await supabase
+        .from('user_profiles')
+        .select('id, status, expiry_date, cakto_customer_id')
+        .eq('cakto_customer_id', data.cakto_customer_id)
+        .eq('status', 'active')
+        .limit(1)
+        .maybeSingle();
+
+      if (paymentError && paymentError.code !== 'PGRST116') {
+        throw paymentError;
+      }
+
+      // Se não encontrou perfil ativo, o pagamento não está ativo
+      if (!paymentProfile) {
+        throw new Error('PAGAMENTO_INATIVO');
+      }
+
+      // Verificar se o pagamento não expirou
+      if (paymentProfile.expiry_date) {
+        const expiryDate = new Date(paymentProfile.expiry_date);
+        if (expiryDate < new Date()) {
+          throw new Error('PAGAMENTO_EXPIRADO');
+        }
+      }
+
+      // Verificar se há vagas disponíveis (se max_linked_accounts estiver definido)
+      if (data.max_linked_accounts !== null && data.max_linked_accounts !== undefined) {
+        if (data.linked_accounts_count >= data.max_linked_accounts) {
+          throw new Error('CUPOM_ESGOTADO');
+        }
+      }
     }
 
     return data as Coupon;
@@ -283,6 +345,19 @@ export const authFlowService = {
         // Não falha o cadastro se apenas o incremento do cupom deu erro,
         // mas loga para análise.
         console.error('Erro ao atualizar uso do cupom:', updateError);
+      }
+
+      // Criar vínculo entre usuário e cupom na tabela user_coupon_links
+      const { error: linkError } = await supabase
+        .from('user_coupon_links')
+        .insert({
+          user_id: user.id,
+          coupon_id: coupon.id,
+        });
+
+      if (linkError) {
+        console.error('Erro ao criar vínculo usuário-cupom:', linkError);
+        // Não falha o cadastro, mas loga o erro
       }
 
       // Também podemos opcionalmente marcar o plano diretamente em user_profiles

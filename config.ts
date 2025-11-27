@@ -2,7 +2,7 @@
 
 export const APP_CONFIG = {
   // URL para gerenciamento de conta (sem preço/link de compra - compliance Google Play)
-  ACCOUNT_MANAGEMENT_URL: 'https://nutri-ia.com.br/gerenciar-conta', // Ajuste para sua URL real
+  ACCOUNT_MANAGEMENT_URL: 'https://pagina-de-vendas-nutriai.vercel.app/', // Ajuste para sua URL real
   
   // Limites de uso
   VOICE_DAILY_LIMIT_SECONDS: 900, // 15 minutos
