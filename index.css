@@ -1,0 +1,26 @@
+/* Tailwind CSS Base Styles */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom Styles */
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: #F5F1E8; /* Cream background */
+  color: #1A4D2E; /* Deep Green text */
+}
+
+h1, h2, h3, h4, .serif {
+  font-family: 'DM Serif Display', serif;
+}
+
+/* Hide scrollbar for cleaner UI in horizontal lists */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
