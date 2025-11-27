@@ -3,6 +3,8 @@
 -- ============================================
 -- Execute este script no Supabase SQL Editor após executar supabase_coupon_payment_link.sql
 -- 
+-- ⚠️ IMPORTANTE: Execute primeiro fix_coupons_unique.sql para criar a constraint UNIQUE
+-- 
 -- IMPORTANTE: Use ON CONFLICT para evitar erros se os cupons já existirem
 
 -- ============================================

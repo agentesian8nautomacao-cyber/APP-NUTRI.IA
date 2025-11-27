@@ -67,11 +67,17 @@ FROM pg_policies
 WHERE tablename = 'coupons';
 
 -- 8. Criar cupom de teste rápido (se não existir)
+-- NOTA: Se der erro de ON CONFLICT, execute primeiro fix_coupons_unique.sql
 INSERT INTO coupons (code, plan_linked, max_uses, is_active)
 VALUES ('TESTE-RAPIDO', 'free', 10, true)
 ON CONFLICT (code) DO UPDATE 
 SET is_active = true, current_uses = 0
 RETURNING *;
+
+-- Alternativa sem ON CONFLICT (se a constraint não existir):
+-- INSERT INTO coupons (code, plan_linked, max_uses, is_active)
+-- SELECT 'TESTE-RAPIDO', 'free', 10, true
+-- WHERE NOT EXISTS (SELECT 1 FROM coupons WHERE code = 'TESTE-RAPIDO');
 
 -- 9. Ativar todos os cupons de teste
 UPDATE coupons
