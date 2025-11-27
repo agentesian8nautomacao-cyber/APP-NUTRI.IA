@@ -25,23 +25,31 @@
 
 - **Login via Cupom (Onboarding)**
   - Lógica pronta no backend/app para:
-    - Validar cupom (`coupons`).
+    - **Validação completa**: verifica se cupom existe, está ativo (`is_active = true`) e tem vagas (`current_uses < max_uses`).
+    - **Bloqueio automático**: impede cadastro se limite estourou (ex: 21º tentando usar cupom de 20 vagas).
     - Criar conta com `plan_type = plan_linked` e `subscription_status = 'active'`.
-    - Incrementar `current_uses` do cupom.
+    - Incrementar `current_uses` do cupom de forma atômica.
+    - Mensagens de erro específicas: "Código de convite inválido" ou "Este código de convite atingiu o limite de usos."
   - Exemplo de tela de registro documentado em `SUPABASE_INTEGRATION.md`.
 
 - **Limites e Compliance**
   - **Voz (Gemini Live)**:
     - `LiveConversation.tsx` integrado com `limitsService.consumeVoiceSeconds`.
+    - **Trava rígida de 15 minutos (900s) por dia** implementada.
     - Consome primeiro `voice_daily_limit_seconds`, depois `voice_balance_upsell`.
-    - Hard cut com mensagem: “Limite diário atingido. Gerencie sua conta em nosso site.”
+    - **Hard cut automático**: derruba WebSocket imediatamente quando limite é atingido.
+    - **Pop-up de limite** (compliance Google Play):
+      - Mensagem: "Limite diário atingido. Gerencie sua conta em nosso site."
+      - **Apenas botão "Gerenciar Conta"** (sem preço/link de compra).
+      - Abre URL configurável em `config.ts` → `ACCOUNT_MANAGEMENT_URL`.
   - **Texto (Chat)**:
     - `ChatAssistant.tsx` integrado com `limitsService.registerTextMessage`.
-    - Bloqueio acima de 600 mensagens/dia com aviso: “Limite de segurança diário atingido.”
+    - **Bloqueio acima de 600 mensagens/dia** (anti-bot) com aviso: "Limite de segurança diário atingido."
+    - **Economia de IA**: API configurada para responder no máximo **1024 tokens** (≈ 3 parágrafos) em todas as chamadas.
   - **Deleção de Conta (Google Play)**
-    - Botão “Excluir minha conta” no `ProfileView.tsx`:
-      - Confirmação.
-      - Limpa dados principais no Supabase.
+    - Botão "Excluir minha conta" no `ProfileView.tsx`:
+      - Confirmação obrigatória.
+      - Limpa dados principais no Supabase (chat, logs, scans, progresso, wellness, planos).
       - Tenta deletar o usuário em `auth`.
       - Faz logout e recarrega o app.
 
@@ -53,6 +61,12 @@
     - Recebe webhook da Cakto com `email`, `plan_code`, `event_type`, `expires_at`.
     - Cria ou encontra o usuário em `auth.users`.
     - Atualiza `user_profiles` com plano, status, expiração e limites de voz.
+
+- **Configurações Globais**
+  - Arquivo `config.ts` criado com:
+    - `ACCOUNT_MANAGEMENT_URL`: URL para gerenciamento de conta (compliance Google Play).
+    - Limites de uso (voz, texto).
+    - Configurações de IA (max tokens).
 
 - **Documentação Criada**
   - `SUPABASE_SETUP.md`: como configurar o projeto Supabase.
@@ -86,12 +100,19 @@
     - Campo “Possui código de convite?” está visível.
     - Mensagens de erro de cupom (inválido/esgotado) aparecem para o usuário.
 
-- **4. Testes completos em produção de limites**
+- **4. Configurar URL de Gerenciamento de Conta**
+  - Ajustar `config.ts` → `ACCOUNT_MANAGEMENT_URL` para a URL real do seu site de vendas/gerenciamento.
+  - Garantir que a página não mostra preços/links de compra diretos (compliance Google Play).
+
+- **5. Testes completos em produção de limites**
   - Testar:
     - Limite diário de voz (simular 900s+ em `LiveConversation`).
+    - Verificar se WebSocket é derrubado automaticamente quando limite é atingido.
+    - Verificar se pop-up mostra apenas "Gerenciar Conta" (sem preço/link de compra).
     - Consumo de `voice_balance_upsell` caso seja configurado.
     - Bloqueio de 600 mensagens de texto/dia.
-    - Fluxo completo de “Excluir minha conta” em dispositivos reais (Android / Google Play).
+    - Verificar se respostas do chat estão limitadas a ~1024 tokens (≈ 3 parágrafos).
+    - Fluxo completo de "Excluir minha conta" em dispositivos reais (Android / Google Play).
 
 - **5. Segurança e chaves**
   - Garantir que:

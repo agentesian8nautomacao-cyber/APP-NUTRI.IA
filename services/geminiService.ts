@@ -361,14 +361,22 @@ export const chatWithNutritionist = async (
     }
 
     let model = "gemini-2.5-flash"; 
-    let config: any = { systemInstruction };
+    let config: any = { 
+      systemInstruction,
+      // Limite de tokens para economia de IA (max 1024 tokens ≈ 3 parágrafos)
+      maxOutputTokens: 1024
+    };
 
     if (options?.useThinking) {
       model = "gemini-3-pro-preview";
-      config.thinkingConfig = { thinkingBudget: 32768 }; 
+      config.thinkingConfig = { thinkingBudget: 32768 };
+      // Mantém limite de tokens mesmo no modo thinking
+      config.maxOutputTokens = 1024;
     } else if (options?.useSearch) {
       model = "gemini-2.5-flash";
       config.tools = [{ googleSearch: {} }];
+      // Mantém limite de tokens mesmo no modo search
+      config.maxOutputTokens = 1024;
     }
 
     if (onLogMeal) {

@@ -4,6 +4,7 @@ import { GoogleGenAI, LiveServerMessage, Modality, Blob, Type, FunctionDeclarati
 import { X, Mic, MicOff, PhoneOff, Activity, CheckCircle2 } from 'lucide-react';
 import { UserProfile, DailyPlan, LogItem, MealItem } from '../types';
 import { authService, limitsService } from '../services/supabaseService';
+import { APP_CONFIG } from '../config';
 
 interface LiveConversationProps {
   onClose: () => void;
@@ -354,9 +355,22 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
           <h2 className="mt-8 text-3xl font-serif text-[#F5F1E8]">Nutri.ai</h2>
           <p className="text-[#F5F1E8]/60 mt-2">Assistente Pessoal</p>
           {limitReached && (
-            <p className="mt-4 max-w-md text-center text-sm font-semibold text-yellow-200 bg-yellow-900/40 px-4 py-2 rounded-2xl">
-              {limitReached}
-            </p>
+            <div className="mt-6 max-w-md w-full px-6">
+              <div className="bg-yellow-900/40 border border-yellow-700 rounded-2xl p-6 space-y-4">
+                <p className="text-center text-sm font-semibold text-yellow-200">
+                  {limitReached}
+                </p>
+                <button
+                  onClick={() => {
+                    // Abre o site de gerenciamento de conta (sem preço/link de compra - compliance Google Play)
+                    window.open(APP_CONFIG.ACCOUNT_MANAGEMENT_URL, '_blank');
+                  }}
+                  className="w-full bg-[#F5F1E8] text-[#1A4D2E] font-bold py-3 px-6 rounded-full hover:bg-white transition-colors"
+                >
+                  Gerenciar Conta
+                </button>
+              </div>
+            </div>
           )}
        </div>
 
