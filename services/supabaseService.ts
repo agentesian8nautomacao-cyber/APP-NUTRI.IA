@@ -9,6 +9,8 @@ import {
   ActivityLevel,
   Goal,
   Gender,
+  AccountType,
+  UserAccessInfo,
 } from '../types';
 
 // ============================================
@@ -1071,6 +1073,76 @@ export const limitsService = {
     if (authError) {
       console.error('Erro ao deletar usuário auth:', authError);
     }
+  },
+};
+
+// ============================================
+// SISTEMA DE ROLES E PERMISSÕES
+// ============================================
+
+export const permissionsService = {
+  /**
+   * Obtém informações completas de acesso e permissões do usuário
+   */
+  async getUserAccessInfo(userId: string): Promise<UserAccessInfo> {
+    const { data, error } = await supabase.rpc('get_user_access_info', {
+      p_user_id: userId,
+    });
+
+    if (error) throw error;
+    if (!data) throw new Error('ACCESS_INFO_NOT_FOUND');
+
+    return {
+      account_type: data.account_type as AccountType,
+      has_access: data.has_access as boolean,
+      block_reason: data.block_reason || undefined,
+      block_message: data.block_message || undefined,
+      can_use_voice: data.can_use_voice as boolean,
+      can_use_chat: data.can_use_chat as boolean,
+      can_log_meals: data.can_log_meals as boolean,
+      can_access_progress: data.can_access_progress as boolean,
+      can_access_dashboard: data.can_access_dashboard as boolean,
+      redirect_to: data.redirect_to as 'dashboard' | 'progress' | 'blocked',
+    };
+  },
+
+  /**
+   * Verifica status da academia vinculada ao aluno
+   */
+  async checkGymAccountStatus(studentUserId: string) {
+    const { data, error } = await supabase.rpc('check_gym_account_status', {
+      p_student_user_id: studentUserId,
+    });
+
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Vincula um aluno (USER_GYM) a uma academia (USER_PERSONAL)
+   */
+  async linkStudentToGym(gymUserId: string, studentUserId: string) {
+    const { data, error } = await supabase.rpc('link_student_to_gym', {
+      p_gym_user_id: gymUserId,
+      p_student_user_id: studentUserId,
+    });
+
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Obtém o account_type do usuário
+   */
+  async getAccountType(userId: string): Promise<AccountType | null> {
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .select('account_type')
+      .eq('user_id', userId)
+      .single();
+
+    if (error) throw error;
+    return (data?.account_type as AccountType) || null;
   },
 };
 
