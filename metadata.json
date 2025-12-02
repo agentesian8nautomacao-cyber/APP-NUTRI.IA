@@ -1,6 +1,6 @@
 {
-  "name": "2",
-  "description": "An AI-powered nutrition assistant that generates personalized meal plans, analyzes food photos, and tracks your dietary habits.",
+  "name": "Copia de segurança nutri ai ",
+  "description": "Nutri.ai é um app de nutrição que gera planos alimentares personalizados, analisa fotos de comida e monitora seus hábitos alimentares.",
   "requestFramePermissions": [
     "camera",
     "microphone"

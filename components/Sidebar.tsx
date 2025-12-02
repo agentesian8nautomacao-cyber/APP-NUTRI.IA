@@ -4,9 +4,7 @@ import {
   Home, 
   Sparkles, 
   UtensilsCrossed, 
-  Camera, 
   TrendingUp, 
-  BarChart3, 
   Heart, 
   Trophy, 
   BookOpen, 
@@ -14,7 +12,8 @@ import {
   ShieldCheck, 
   Settings, 
   X,
-  ScrollText
+  ScrollText,
+  Dumbbell
 } from 'lucide-react';
 import { AppView } from '../types';
 
@@ -31,9 +30,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, currentView, onNavig
     { id: 'dashboard', label: 'Início', icon: Home },
     { id: 'diet_plan', label: 'Meu Plano Alimentar', icon: ScrollText },
     { id: 'smart_meal', label: 'Refeição Inteligente', icon: UtensilsCrossed },
-    { id: 'analyzer', label: 'Scanner de Alimentos', icon: Camera },
+    { id: 'personal_chat', label: 'Personal Nutri', icon: Dumbbell },
     { id: 'progress', label: 'Progresso', icon: TrendingUp },
-    { id: 'reports', label: 'Relatórios IA', icon: BarChart3 },
     { id: 'wellness', label: 'Plano de Bem-estar', icon: Heart },
     { id: 'challenges', label: 'Desafios', icon: Trophy },
     { id: 'library', label: 'Biblioteca', icon: BookOpen },
@@ -60,8 +58,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, currentView, onNavig
       >
         {/* Header */}
         <div className="p-8 flex justify-between items-center">
-          <h2 className="text-3xl font-serif font-bold text-[#F5F1E8]">Nutri<span className="text-[#8FA998]">.ai</span></h2>
-          <button onClick={onClose} className="text-[#8FA998] hover:text-white">
+          {/* Matched Logo Style to Landing Page */}
+          <h2 className="text-3xl font-serif text-[#F5F1E8]">Nutri<span className="opacity-50">.ai</span></h2>
+          <button onClick={onClose} className="text-[#F5F1E8]/60 hover:text-white">
             <X size={24} />
           </button>
         </div>
@@ -82,12 +81,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, currentView, onNavig
                 className={`w-full flex items-center gap-4 px-4 py-4 rounded-[1.5rem] transition-all duration-200 group ${
                   isActive 
                     ? 'bg-[#F5F1E8] text-[#1A4D2E] shadow-lg' 
-                    : 'text-[#8FA998] hover:bg-[#4F6F52]/20 hover:text-[#F5F1E8]'
+                    : 'text-[#F5F1E8]/60 hover:bg-[#4F6F52]/20 hover:text-[#F5F1E8]'
                 }`}
               >
                 <Icon 
                   size={20} 
-                  className={`transition-colors ${isActive ? 'text-[#1A4D2E]' : 'text-[#8FA998] group-hover:text-[#F5F1E8]'}`} 
+                  className={`transition-colors ${isActive ? 'text-[#1A4D2E]' : 'text-[#F5F1E8]/60 group-hover:text-[#F5F1E8]'}`} 
                 />
                 <span className="font-medium text-sm tracking-wide">{item.label}</span>
               </button>

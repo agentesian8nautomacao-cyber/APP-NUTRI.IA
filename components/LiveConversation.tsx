@@ -1,10 +1,9 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality, Blob, Type, FunctionDeclaration } from "@google/genai";
-import { X, Mic, MicOff, PhoneOff, Activity, CheckCircle2 } from 'lucide-react';
+import { X, Mic, MicOff, PhoneOff, Activity, CheckCircle2, Lock, Home, BookOpen, User, Mic as MicIcon, ArrowDown, Zap, Clock, Infinity, Check, Trash2 } from 'lucide-react';
 import { UserProfile, DailyPlan, LogItem, MealItem } from '../types';
-import { authService, limitsService } from '../services/supabaseService';
-import { APP_CONFIG } from '../config';
+import { limitsService, authService } from '../services/supabaseService';
 
 interface LiveConversationProps {
   onClose: () => void;
@@ -12,15 +11,31 @@ interface LiveConversationProps {
   dietPlan?: DailyPlan | null;
   dailyLog?: LogItem[];
   onAddFood?: (item: MealItem, type: string) => void;
+  onRemoveFood?: (id: string) => void;
 }
 
-const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfile, dietPlan, dailyLog, onAddFood }) => {
+const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfile, dietPlan, dailyLog, onAddFood, onRemoveFood }) => {
   const [isConnected, setIsConnected] = useState(false);
   const [isMicOn, setIsMicOn] = useState(true);
   const [volume, setVolume] = useState(0);
   const [status, setStatus] = useState("Conectando...");
   const [loggedItem, setLoggedItem] = useState<string | null>(null);
-  const [limitReached, setLimitReached] = useState<string | null>(null);
+  const [deletedItem, setDeletedItem] = useState<string | null>(null);
+  
+  // Nova lógica de saldos de voz
+  const [voiceBalances, setVoiceBalances] = useState<{
+    isVip: boolean;
+    freeMinutes: number;
+    boostMinutes: number;
+    reserveMinutes: number;
+    totalSeconds: number;
+  } | null>(null);
+  const [secondsActive, setSecondsActive] = useState(0);
+  const [isLimitReached, setIsLimitReached] = useState(false);
+  const [limitError, setLimitError] = useState<string | null>(null);
+  
+  const userIdRef = useRef<string | null>(null);
+  const consumptionIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Audio Contexts
   const inputAudioContextRef = useRef<AudioContext | null>(null);
@@ -52,6 +67,19 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
       },
       required: ["foodName", "calories", "protein", "carbs", "fats", "mealType"]
     }
+  };
+
+  // Define Tool for Deleting Meals
+  const deleteFoodTool: FunctionDeclaration = {
+      name: "deleteFood",
+      description: "Remove um registro de alimento do diário alimentar. Use quando o usuário pedir para apagar, remover ou deletar algo que comeu.",
+      parameters: {
+          type: Type.OBJECT,
+          properties: {
+              foodName: { type: Type.STRING, description: "Nome do alimento a ser removido (ex: 'maçã', 'café')." }
+          },
+          required: ["foodName"]
+      }
   };
 
   // Helper to convert Float32 to PCM16
@@ -98,12 +126,28 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
     return buffer;
   };
 
+  // Init Session
   useEffect(() => {
+    // Se não carregou saldos ainda, aguardar
+    if (!voiceBalances) {
+      return;
+    }
+    
+    // Se limite atingido e não é VIP, não conectar
+    if (isLimitReached && !voiceBalances.isVip) {
+      if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
+      return;
+    }
+    
+    // Se não tem saldo e não é VIP, não conectar
+    if (voiceBalances.totalSeconds === 0 && !voiceBalances.isVip) {
+      setIsLimitReached(true);
+      return;
+    }
+
     const initSession = async () => {
       try {
-        const apiKey = process.env.API_KEY;
-        if (!apiKey) throw new Error("API Key missing");
-        const ai = new GoogleGenAI({ apiKey });
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
         // Sanitize function for JSON stringify
         const sanitize = (key: string, value: any) => {
@@ -119,18 +163,24 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
           - O que comeu hoje: ${JSON.stringify(dailyLog || [], sanitize)}
         `;
 
-        const systemInstruction = `
+        let systemInstruction = `
           Você é a Nutri.ai, uma nutricionista pessoal.
           
           ${contextData}
 
           Instruções:
           1. Responda de forma natural e conversacional.
-          2. Se o usuário disser que comeu algo, você DEVE usar a ferramenta 'logMeal'.
-          3. Estime as calorias e macros para a ferramenta se o usuário não fornecer.
-          4. Confirme verbalmente quando registrar.
-          5. Fale sempre em Português do Brasil.
+          2. Se o usuário disser que comeu algo, use a ferramenta 'logMeal'.
+          3. Se o usuário pedir para remover algo, use a ferramenta 'deleteFood'.
+          4. Estime as calorias e macros para a ferramenta se o usuário não fornecer.
+          5. Confirme verbalmente quando registrar ou remover.
+          6. Fale sempre em Português do Brasil.
         `;
+
+        // Inject Custom Chat Instructions if available
+        if (userProfile?.customChatInstructions) {
+            systemInstruction += `\n\nInstruções Personalizadas: ${userProfile.customChatInstructions}`;
+        }
 
         // Setup Audio Contexts
         inputAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
@@ -152,10 +202,8 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
               sourceRef.current = inputAudioContextRef.current.createMediaStreamSource(streamRef.current);
               scriptProcessorRef.current = inputAudioContextRef.current.createScriptProcessor(4096, 1, 1);
               
-              scriptProcessorRef.current.onaudioprocess = async (e) => {
+              scriptProcessorRef.current.onaudioprocess = (e) => {
                 if (!isMicOn) return; // Mute logic
-                if (limitReached) return; // Limite atingido, não enviar mais áudio
-
                 const inputData = e.inputBuffer.getChannelData(0);
                 
                 // Simple volume meter logic
@@ -163,34 +211,10 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
                 for(let i=0; i<inputData.length; i++) sum += inputData[i] * inputData[i];
                 setVolume(Math.sqrt(sum / inputData.length) * 100);
 
-                // Cada callback ~ 4096 samples @16kHz ≈ 0.256s de áudio
-                const approxSeconds = 0.26;
-
-                try {
-                  const user = await authService.getCurrentUser();
-                  if (!user) return;
-
-                  await limitsService.consumeVoiceSeconds(user.id, approxSeconds);
-
-                  const pcmBlob = createBlob(inputData);
-                  sessionPromise.then(session => {
-                    session.sendRealtimeInput({ media: pcmBlob });
-                  });
-                } catch (err: any) {
-                  if (err instanceof Error && err.message === 'VOICE_LIMIT_REACHED') {
-                    setLimitReached(
-                      'Limite diário atingido. Gerencie sua conta em nosso site.'
-                    );
-                    setStatus('Limite atingido');
-                    setIsMicOn(false);
-                    // Encerra a sessão de áudio
-                    sessionPromise.then(session => {
-                      session.close();
-                    }).catch(() => {});
-                  } else {
-                    console.error('Erro ao consumir limite de voz:', err);
-                  }
-                }
+                const pcmBlob = createBlob(inputData);
+                sessionPromise.then(session => {
+                  session.sendRealtimeInput({ media: pcmBlob });
+                });
               };
 
               sourceRef.current.connect(scriptProcessorRef.current);
@@ -198,13 +222,13 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
             },
             onmessage: async (msg: LiveServerMessage) => {
               
-              // Handle Tool Call (Logging Food)
+              // Handle Tool Call (Logging/Deleting Food)
               if (msg.toolCall) {
                 const responses = [];
                 for (const fc of msg.toolCall.functionCalls) {
+                    const args = fc.args as any;
+
                     if (fc.name === 'logMeal' && onAddFood) {
-                        const args = fc.args as any;
-                        
                         // Create Meal Item
                         const newItem: MealItem = {
                             name: args.foodName,
@@ -217,10 +241,8 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
                             description: args.description || "Registrado via voz"
                         };
 
-                        // Execute prop function to update App state
                         onAddFood(newItem, args.mealType);
                         
-                        // Show visual feedback
                         setLoggedItem(`${args.foodName} (${args.calories} kcal)`);
                         setTimeout(() => setLoggedItem(null), 3000);
 
@@ -229,6 +251,29 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
                             name: fc.name,
                             response: { result: "Success: Meal logged." }
                         });
+                    }
+                    else if (fc.name === 'deleteFood' && onRemoveFood && dailyLog) {
+                        // Logic to find the item to delete (simple exact/partial match)
+                        const itemToDelete = dailyLog.find(item => 
+                            item.name.toLowerCase().includes(args.foodName.toLowerCase())
+                        );
+
+                        if (itemToDelete) {
+                            onRemoveFood(itemToDelete.id);
+                            setDeletedItem(itemToDelete.name);
+                            setTimeout(() => setDeletedItem(null), 3000);
+                            responses.push({
+                                id: fc.id,
+                                name: fc.name,
+                                response: { result: `Success: Removed ${itemToDelete.name}` }
+                            });
+                        } else {
+                            responses.push({
+                                id: fc.id,
+                                name: fc.name,
+                                response: { result: "Error: Item not found." }
+                            });
+                        }
                     }
                 }
                 
@@ -277,9 +322,9 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
           },
           config: {
              responseModalities: [Modality.AUDIO],
-             tools: [{ functionDeclarations: [logMealTool] }],
+             tools: [{ functionDeclarations: [logMealTool, deleteFoodTool] }],
              speechConfig: {
-               voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } }
+               voiceConfig: { prebuiltVoiceConfig: { voiceName: userProfile?.aiVoice || 'Kore' } }
              },
              systemInstruction: systemInstruction
           }
@@ -300,15 +345,101 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
       if (outputAudioContextRef.current) outputAudioContextRef.current.close();
       if (scriptProcessorRef.current) scriptProcessorRef.current.disconnect();
       if (sourceRef.current) sourceRef.current.disconnect();
+      if (consumptionIntervalRef.current) {
+        clearInterval(consumptionIntervalRef.current);
+      }
     };
-  }, [userProfile, dietPlan, dailyLog]); // Re-connect if context drastically changes (optional, usually context is static per session)
+  }, [userProfile, dietPlan, dailyLog, voiceBalances, isLimitReached]);
 
   const toggleMic = () => {
     setIsMicOn(!isMicOn);
   };
 
+  // --- TIME LIMIT REACHED SCREEN (UPSELL) ---
+  if (isLimitReached && (!voiceBalances || !voiceBalances.isVip)) {
+      const totalMinutes = voiceBalances 
+        ? Math.floor(voiceBalances.totalSeconds / 60)
+        : 0;
+      
+      return (
+        <div className="fixed inset-0 bg-[#F0FDF4] z-[60] flex flex-col items-center justify-between p-6 animate-in fade-in duration-500 font-sans">
+            
+            {/* Top Section */}
+            <div className="w-full flex justify-end">
+                <button onClick={onClose} className="p-2 text-[#1E3A8A]/50 hover:text-[#1E3A8A]">
+                    <X size={24} />
+                </button>
+            </div>
+
+            {/* Content Container */}
+            <div className="flex-1 flex flex-col items-center justify-center text-center max-w-sm w-full">
+                
+                <h2 className="text-[#1E3A8A] text-3xl font-bold mb-8 leading-tight">
+                    Limite diário atingido
+                </h2>
+
+                {/* Central Graphic */}
+                <div className="relative mb-10">
+                    <div className="text-[140px] font-bold text-[#1E3A8A] leading-none opacity-5 select-none">
+                      {totalMinutes > 0 ? totalMinutes : '0'}
+                    </div>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="bg-white p-6 rounded-full shadow-xl border border-[#F0FDF4]">
+                             <Lock size={48} className="text-[#F97316]" />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Persuasive Text */}
+                <p className="text-[#374151] text-lg font-medium leading-relaxed mb-1">
+                    Mas temos uma notícia boa!
+                </p>
+                <p className="text-[#374151]/80 text-base leading-relaxed mb-6">
+                    Você vai se surpreender com os planos que preparamos. As condições estão incríveis.
+                </p>
+
+                {/* Arrow */}
+                <div className="mb-6 animate-bounce text-[#F97316]">
+                    <ArrowDown size={32} strokeWidth={3} />
+                </div>
+
+                {/* CTA Button */}
+                <button 
+                    onClick={() => window.location.href = "https://pagina-de-vendas-nutriai.vercel.app/"}
+                    className="w-full bg-[#F97316] text-white font-bold text-xl py-4 rounded-full shadow-lg hover:bg-[#EA580C] hover:scale-105 transition-all transform flex items-center justify-center gap-2 mb-4"
+                >
+                    Ver Planos Disponíveis
+                </button>
+
+                <p className="text-[#1E3A8A] text-sm font-semibold opacity-60">
+                    Clique abaixo para conferir agora mesmo.
+                </p>
+            </div>
+
+            {/* Footer */}
+            <div className="w-full text-center pb-4">
+                <p className="text-gray-400 text-xs">
+                    Cancele quando quiser.
+                </p>
+            </div>
+        </div>
+      );
+  }
+
+  // --- STANDARD LIVE INTERFACE ---
   return (
     <div className="fixed inset-0 bg-[#1A4D2E] z-50 flex flex-col animate-in fade-in duration-500">
+       
+       {/* DEV BUTTON: Trigger Limit */}
+       {process.env.NODE_ENV === 'development' && (
+         <button 
+           onClick={() => setIsLimitReached(true)}
+           className="absolute top-24 right-6 bg-orange-500/80 hover:bg-orange-600 text-white text-[10px] font-bold px-3 py-1.5 rounded-full z-50 transition-all border border-white/20 shadow-lg"
+         >
+           Testar Limite (Dev)
+         </button>
+       )}
+
        {/* Header */}
        <div className="p-6 flex justify-between items-center relative z-10">
           <div className="flex items-center gap-3 text-[#F5F1E8]">
@@ -333,6 +464,16 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
           </div>
        )}
 
+       {/* Toast Notification for Deleted Item */}
+       {deletedItem && (
+          <div className="absolute top-24 left-1/2 -translate-x-1/2 z-50 bg-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-in slide-in-from-top duration-500">
+             <div className="bg-red-100 p-1 rounded-full">
+                <Trash2 className="text-red-600" size={20} />
+             </div>
+             <span className="text-[#1A4D2E] font-bold text-sm">Removido: {deletedItem}</span>
+          </div>
+       )}
+
        {/* Visualizer */}
        <div className="flex-1 flex flex-col items-center justify-center relative">
           
@@ -354,22 +495,34 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
 
           <h2 className="mt-8 text-3xl font-serif text-[#F5F1E8]">Nutri.ai</h2>
           <p className="text-[#F5F1E8]/60 mt-2">Assistente Pessoal</p>
-          {limitReached && (
-            <div className="mt-6 max-w-md w-full px-6">
-              <div className="bg-yellow-900/40 border border-yellow-700 rounded-2xl p-6 space-y-4">
-                <p className="text-center text-sm font-semibold text-yellow-200">
-                  {limitReached}
+          {voiceBalances && (
+            <div className="text-[#F5F1E8]/30 text-xs mt-4 space-y-1">
+              {voiceBalances.isVip ? (
+                <p className="flex items-center justify-center gap-1">
+                  <Infinity size={14} /> Ilimitado
                 </p>
-                <button
-                  onClick={() => {
-                    // Abre o site de gerenciamento de conta (sem preço/link de compra - compliance Google Play)
-                    window.open(APP_CONFIG.ACCOUNT_MANAGEMENT_URL, '_blank');
-                  }}
-                  className="w-full bg-[#F5F1E8] text-[#1A4D2E] font-bold py-3 px-6 rounded-full hover:bg-white transition-colors"
-                >
-                  Gerenciar Conta
-                </button>
-              </div>
+              ) : (
+                <>
+                  <p>Tempo restante: {Math.floor(voiceBalances.totalSeconds / 60)} min</p>
+                  <div className="flex items-center justify-center gap-2 text-[10px] opacity-70">
+                    {voiceBalances.freeMinutes > 0 && (
+                      <span className="flex items-center gap-1">
+                        <Clock size={10} /> Gratuito: {voiceBalances.freeMinutes}m
+                      </span>
+                    )}
+                    {voiceBalances.boostMinutes > 0 && (
+                      <span className="flex items-center gap-1">
+                        <Zap size={10} /> Boost: {voiceBalances.boostMinutes}m
+                      </span>
+                    )}
+                    {voiceBalances.reserveMinutes > 0 && (
+                      <span className="flex items-center gap-1">
+                        <Check size={10} /> Reserva: {voiceBalances.reserveMinutes}m
+                      </span>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           )}
        </div>
@@ -384,7 +537,7 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
                : 'bg-white text-[#1A4D2E]'
              }`}
           >
-             {isMicOn ? <Mic size={32} /> : <MicOff size={32} />}
+             {isMicOn ? <MicIcon size={32} /> : <MicOff size={32} />}
           </button>
 
           <button 

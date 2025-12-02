@@ -1,16 +1,6 @@
 
-import { GoogleGenAI, Type, Schema, FunctionDeclaration } from "@google/genai";
+import { GoogleGenAI, Type, FunctionDeclaration } from "@google/genai";
 import { UserProfile, DailyPlan, MealItem, LogItem, Recipe } from "../types";
-
-// Helper to handle API key securely
-const getApiKey = () => {
-  const key = process.env.API_KEY;
-  if (!key) {
-    console.error("API Key is missing");
-    throw new Error("API Key is missing");
-  }
-  return key;
-};
 
 // Helper to retry functions on failure (e.g. Network Error)
 const callWithRetry = async <T>(fn: () => Promise<T>, retries = 3, delay = 1000): Promise<T> => {
@@ -41,16 +31,22 @@ const logMealTool: FunctionDeclaration = {
           enum: ["Breakfast", "Lunch", "Dinner", "Snack"],
           description: "Tipo da refeição (Café, Almoço, Jantar, Lanche). Inferir pelo horário ou contexto."
       },
-      description: { type: Type.STRING, description: "Uma descrição atraente em português citando os benefícios nutricionais (ex: 'Rico em proteínas que ajudam na recuperação muscular'). OBRIGATÓRIO." }
+      description: { type: Type.STRING, description: "Uma descrição atraente em português citando os benefícios nutricionais." },
+      emoji: { type: Type.STRING, description: "Um único emoji que represente este alimento (ex: 🍎, 🥩, 🥗)." }
     },
-    required: ["foodName", "calories", "protein", "carbs", "fats", "mealType", "description"]
+    required: ["foodName", "calories", "protein", "carbs", "fats", "mealType", "description", "emoji"]
   }
 };
 
-export const generateDietPlan = async (profile: UserProfile): Promise<DailyPlan> => {
-  const ai = new GoogleGenAI({ apiKey: getApiKey() });
+export const generateDietPlan = async (
+    profile: UserProfile, 
+    customInstructions?: string, 
+    attachment?: { data: string, mimeType: string },
+    usePantry: boolean = true
+): Promise<DailyPlan> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-  const schema: Schema = {
+  const schema = {
     type: Type.OBJECT,
     properties: {
       totalCalories: { type: Type.NUMBER },
@@ -79,6 +75,7 @@ export const generateDietPlan = async (profile: UserProfile): Promise<DailyPlan>
                   calories: { type: Type.NUMBER },
                   description: { type: Type.STRING },
                   substitutions: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  emoji: { type: Type.STRING, description: "Um emoji representando o alimento" },
                   macros: {
                     type: Type.OBJECT,
                     properties: {
@@ -89,7 +86,7 @@ export const generateDietPlan = async (profile: UserProfile): Promise<DailyPlan>
                     required: ["protein", "carbs", "fats"],
                   }
                 },
-                required: ["name", "calories", "macros", "description", "substitutions"]
+                required: ["name", "calories", "macros", "description", "substitutions", "emoji"]
               }
             }
           },
@@ -104,36 +101,78 @@ export const generateDietPlan = async (profile: UserProfile): Promise<DailyPlan>
     required: ["totalCalories", "targetMacros", "meals", "notes", "nutritionalAnalysis", "behavioralTips", "shoppingList", "hydrationTarget"]
   };
 
-  const prompt = `
-    You are a World-Class Nutritionist following a strict 7-step protocol to generate the perfect diet plan.
-    
-    PROFILE DATA:
-    - Bio: ${profile.age} years, ${profile.gender}, ${profile.height}cm, ${profile.weight}kg.
-    - Activity: ${profile.activityLevel}.
-    - Main Goal: ${profile.goal}.
-    - Medical History: ${profile.medicalHistory || 'None stated'}.
-    - Routine & Lifestyle: ${profile.routineDescription || 'Standard'}.
-    - Preferences: ${profile.foodPreferences || 'None stated'}.
-    - Restrictions: ${profile.restrictions || 'None'}.
-    - Meal Freq: ${profile.mealsPerDay} meals/day.
+  const pantryList = usePantry && profile.pantryItems && profile.pantryItems.length > 0 
+      ? profile.pantryItems.map(i => i.name).join(', ') 
+      : "None (User opted not to use pantry or has no items)";
 
-    OUTPUT RULES:
-    - Language: Portuguese (Brazil).
-    - Tone: Professional, encouraging, and personalized.
-    - 'nutritionalAnalysis': Write a paragraph explaining WHY you chose these calories/macros and how it helps their specific goal/condition.
-    - 'substitutions': For every food item, provide 1-2 simple alternatives.
-    
-    Return ONLY JSON matching the schema.
-  `;
+  // Different Prompt Strategy if an attachment exists
+  let systemInstruction = "";
+  
+  if (attachment) {
+      systemInstruction = `
+        You are Nutri.ai, a Data Extraction Specialist for Nutrition.
+        
+        TASK:
+        The user has uploaded an EXISTING Diet Plan (PDF or Image).
+        Your goal is NOT to create a new plan, but to DIGITIZE and STRUCTURE the plan from the file into the JSON format.
+        
+        RULES:
+        1. Read the attached file carefully. Extract meals, portions, and food items.
+        2. Map them to 'Breakfast', 'Lunch', 'Dinner', 'Snack'.
+        3. If the file has calories/macros, use them. If not, ESTIMATE them scientifically based on the food description.
+        4. If the user provided extra text instructions ("${customInstructions || ''}"), apply those as modifications to the file's plan.
+        5. 'nutritionalAnalysis': Explain that this is the digitized version of their uploaded plan.
+        6. Language: Portuguese (Brazil).
+        7. Always provide an EMOJI for each food item.
+      `;
+  } else {
+      systemInstruction = `
+        You are Nutri.ai, a World-Class Nutritionist.
+        MISSION: Nutri.ai é um app de nutrição que gera planos alimentares personalizados.
+        
+        PROFILE DATA:
+        - Bio: ${profile.age} years, ${profile.gender}, ${profile.height}cm, ${profile.weight}kg.
+        - Activity: ${profile.activityLevel}.
+        - Main Goal: ${profile.goal}.
+        - Medical History: ${profile.medicalHistory || 'None stated'}.
+        - Routine & Lifestyle: ${profile.routineDescription || 'Standard'}.
+        - Preferences: ${profile.foodPreferences || 'None stated'}.
+        - Restrictions: ${profile.restrictions || 'None'}.
+        - Meal Freq: ${profile.mealsPerDay} meals/day.
+        
+        AVAILABLE INGREDIENTS (PANTRY):
+        - The user has these items at home: ${pantryList}.
+        
+        ${usePantry ? '- CRITICAL RULE: You MUST prioritize using these pantry ingredients in the meals to reduce waste and cost.' : '- NOTE: Ignore pantry items for this generation.'}
+        
+        USER CUSTOM REQUESTS (Highest Priority):
+        "${customInstructions || "No specific custom instructions. Follow standard medical guidelines for the profile."}"
 
+        OUTPUT RULES:
+        - Language: Portuguese (Brazil).
+        - Tone: Professional, encouraging, and personalized.
+        - 'nutritionalAnalysis': Explain WHY you chose these calories/macros. Mention specifically how you used their pantry items or addressed their custom request.
+        - 'substitutions': For every food item, provide 1-2 simple alternatives.
+        - 'emoji': Assign a relevant emoji to each meal item.
+      `;
+  }
+
+  const parts: any[] = [{ text: systemInstruction }];
+  
+  if (attachment) {
+      parts.unshift({ inlineData: { mimeType: attachment.mimeType, data: attachment.data } });
+  }
+
+  // Use gemini-3-pro-preview for the main diet plan generation as it is a complex reasoning task.
+  // We use responseSchema to ensure the output is parseable JSON.
   return callWithRetry(async () => {
       const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: { parts: [{ text: prompt }] },
+        model: "gemini-3-pro-preview",
+        contents: { parts: parts },
         config: {
           responseMimeType: "application/json",
           responseSchema: schema,
-          temperature: 0.7,
+          temperature: attachment ? 0.2 : 0.7, 
         }
       });
 
@@ -144,9 +183,9 @@ export const generateDietPlan = async (profile: UserProfile): Promise<DailyPlan>
 };
 
 export const analyzeFoodImage = async (base64Image: string): Promise<MealItem | null> => {
-  const ai = new GoogleGenAI({ apiKey: getApiKey() });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-  const schema: Schema = {
+  const schema = {
     type: Type.OBJECT,
     properties: {
       name: { type: Type.STRING },
@@ -160,12 +199,13 @@ export const analyzeFoodImage = async (base64Image: string): Promise<MealItem | 
         },
         required: ["protein", "carbs", "fats"],
       },
-      description: { type: Type.STRING }
+      description: { type: Type.STRING },
+      emoji: { type: Type.STRING }
     },
-    required: ["name", "calories", "macros", "description"]
+    required: ["name", "calories", "macros", "description", "emoji"]
   };
 
-  const prompt = "Analyze this food image. Identify the food, estimate portion size, total calories, and macros. Return the description in Portuguese.";
+  const prompt = "Analyze this food image. Identify the food, estimate portion size, total calories, and macros. Return the description in Portuguese and a relevant emoji.";
 
   return callWithRetry(async () => {
       const response = await ai.models.generateContent({
@@ -189,9 +229,9 @@ export const analyzeFoodImage = async (base64Image: string): Promise<MealItem | 
 };
 
 export const searchFoodAI = async (query: string): Promise<MealItem[]> => {
-    const ai = new GoogleGenAI({ apiKey: getApiKey() });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
-    const schema: Schema = {
+    const schema = {
         type: Type.ARRAY,
         items: {
             type: Type.OBJECT,
@@ -207,13 +247,14 @@ export const searchFoodAI = async (query: string): Promise<MealItem[]> => {
                     },
                     required: ["protein", "carbs", "fats"],
                 },
-                description: { type: Type.STRING }
+                description: { type: Type.STRING },
+                emoji: { type: Type.STRING }
             },
-            required: ["name", "calories", "macros", "description"]
+            required: ["name", "calories", "macros", "description", "emoji"]
         }
     };
 
-    const prompt = `Search and generate nutritional data for 3-5 food items matching the query: "${query}". Return in Portuguese.`;
+    const prompt = `Search and generate nutritional data for 3-5 food items matching the query: "${query}". Return in Portuguese with emojis.`;
 
     return callWithRetry(async () => {
         const response = await ai.models.generateContent({
@@ -228,22 +269,29 @@ export const searchFoodAI = async (query: string): Promise<MealItem[]> => {
     });
 };
 
-export const generateRecipeAI = async (ingredients: string[]): Promise<Recipe> => {
-    const ai = new GoogleGenAI({ apiKey: getApiKey() });
+export const generateRecipeAI = async (ingredients: string[], pantryItems?: string[]): Promise<Recipe> => {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
-    const schema: Schema = {
+    const schema = {
         type: Type.OBJECT,
         properties: {
             title: { type: Type.STRING },
             time: { type: Type.STRING },
             calories: { type: Type.NUMBER },
             description: { type: Type.STRING },
-            steps: { type: Type.ARRAY, items: { type: Type.STRING } }
+            steps: { type: Type.ARRAY, items: { type: Type.STRING } },
+            emoji: { type: Type.STRING }
         },
-        required: ["title", "time", "calories", "description", "steps"]
+        required: ["title", "time", "calories", "description", "steps", "emoji"]
     };
 
-    const prompt = `Create a healthy recipe using these ingredients: ${ingredients.join(', ')}. Return in Portuguese.`;
+    let prompt = `Create a healthy recipe using these specific ingredients: ${ingredients.join(', ')}.`;
+    
+    if (pantryItems && pantryItems.length > 0) {
+        prompt += ` You can also use ingredients from the user's pantry if they pair well: ${pantryItems.join(', ')}.`;
+    }
+
+    prompt += ` Return in Portuguese with a main emoji representing the dish.`;
 
     return callWithRetry(async () => {
         const response = await ai.models.generateContent({
@@ -252,14 +300,12 @@ export const generateRecipeAI = async (ingredients: string[]): Promise<Recipe> =
             config: { responseMimeType: "application/json", responseSchema: schema }
         });
         const recipe = JSON.parse(response.text || "{}");
-        // Placeholders for now until image gen is applied
-        recipe.image = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80";
         return recipe;
     });
 };
 
 export const generateArticleContentAI = async (title: string): Promise<string> => {
-    const ai = new GoogleGenAI({ apiKey: getApiKey() });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const prompt = `Write a short, engaging, and educational article about "${title}" for a nutrition app. Use Markdown. In Portuguese.`;
     
     try {
@@ -273,31 +319,8 @@ export const generateArticleContentAI = async (title: string): Promise<string> =
     }
 };
 
-export const generateFoodImageAI = async (foodName: string): Promise<string | null> => {
-  const ai = new GoogleGenAI({ apiKey: getApiKey() });
-  // Prompt for "Nano Banana" (gemini-2.5-flash-image)
-  const prompt = `A realistic, professional food photography shot of ${foodName}. High quality, studio lighting, delicious presentation, 4k, top-down view.`;
-
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-image',
-      contents: { parts: [{ text: prompt }] }
-    });
-
-    for (const part of response.candidates?.[0]?.content?.parts || []) {
-      if (part.inlineData) {
-        return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-      }
-    }
-    return null;
-  } catch (error) {
-    console.error("Image generation error:", error);
-    return null;
-  }
-};
-
 export const transcribeAudio = async (audioBase64: string, mimeType: string = "audio/webm"): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey: getApiKey() });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   try {
     const response = await ai.models.generateContent({
@@ -316,6 +339,34 @@ export const transcribeAudio = async (audioBase64: string, mimeType: string = "a
   }
 };
 
+export const generateImageBackground = async (prompt: string): Promise<string | null> => {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash-image',
+            contents: {
+                parts: [{ text: `Create a high quality, artistic background texture or pattern. Style: ${prompt}. Aspect ratio 9:16 vertical.` }]
+            },
+             config: {
+                imageConfig: {
+                    aspectRatio: "9:16",
+                }
+            }
+        });
+
+        for (const part of response.candidates?.[0]?.content?.parts || []) {
+            if (part.inlineData) {
+                return `data:image/png;base64,${part.inlineData.data}`;
+            }
+        }
+        return null;
+    } catch (e) {
+        console.error("Image gen error", e);
+        return null;
+    }
+};
+
 export const chatWithNutritionist = async (
   history: {role: string, parts: {text: string}[]}[], 
   message: string,
@@ -330,17 +381,17 @@ export const chatWithNutritionist = async (
   },
   onLogMeal?: (data: MealItem, type: string) => void
 ) => {
-    const ai = new GoogleGenAI({ apiKey: getApiKey() });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     let systemInstruction = `
       Você é a Nutri.ai, um assistente pessoal de nutrição de classe mundial.
+      SUA MISSÃO: Gerar planos alimentares personalizados e orientar o usuário em sua jornada de saúde.
       Sua personalidade: Encorajadora, experiente, prática e amigável.
       Idioma: Sempre responda em Português do Brasil.
       Use Markdown para deixar a resposta bonita.
     `;
     
     if (context) {
-      // Sanitize context to remove large images from token count
       const sanitize = (key: string, value: any) => {
           if (key === 'image') return undefined;
           return value;
@@ -351,7 +402,18 @@ export const chatWithNutritionist = async (
         - Perfil: ${JSON.stringify(context.profile)}
         - Plano Alimentar do Dia: ${JSON.stringify(context.plan, sanitize)}
         - Registro de Hoje: ${JSON.stringify(context.log, sanitize)}
+        - Itens na Despensa: ${context.profile?.pantryItems?.map(i => i.name).join(', ') || 'Nenhum'}
       `;
+
+      if (context.profile?.customChatInstructions) {
+          systemInstruction += `\n\nINSTRUÇÕES PERSONALIZADAS DO USUÁRIO (Obrigatório seguir):
+          ${context.profile.customChatInstructions}
+          `;
+      }
+
+      if (context?.profile?.knowledgeBase) {
+          systemInstruction += `\n\n[AVISO]: O usuário carregou um arquivo como BASE DE CONHECIMENTO. As informações do arquivo estão anexadas à mensagem atual. Use-as como fonte principal se relevante.`;
+      }
     }
 
     if (onLogMeal) {
@@ -361,22 +423,17 @@ export const chatWithNutritionist = async (
     }
 
     let model = "gemini-2.5-flash"; 
+    
     let config: any = { 
-      systemInstruction,
-      // Limite de tokens para economia de IA (max 1024 tokens ≈ 3 parágrafos)
-      maxOutputTokens: 1024
+        systemInstruction: systemInstruction 
     };
 
     if (options?.useThinking) {
       model = "gemini-3-pro-preview";
-      config.thinkingConfig = { thinkingBudget: 32768 };
-      // Mantém limite de tokens mesmo no modo thinking
-      config.maxOutputTokens = 1024;
+      config.thinkingConfig = { thinkingBudget: 32768 }; 
     } else if (options?.useSearch) {
       model = "gemini-2.5-flash";
       config.tools = [{ googleSearch: {} }];
-      // Mantém limite de tokens mesmo no modo search
-      config.maxOutputTokens = 1024;
     }
 
     if (onLogMeal) {
@@ -384,9 +441,24 @@ export const chatWithNutritionist = async (
         config.tools.push({ functionDeclarations: [logMealTool] });
     }
 
+    let messageContent: any = [{ text: message }];
+
+    if (context?.profile?.knowledgeBase) {
+        messageContent = [
+            { text: "**[CONTEXTO DO ARQUIVO ANEXADO - BASE DE CONHECIMENTO]**" },
+            { 
+                inlineData: { 
+                    mimeType: context.profile.knowledgeBase.mimeType, 
+                    data: context.profile.knowledgeBase.data 
+                } 
+            },
+            { text: "\n\n**MENSAGEM DO USUÁRIO:**\n" + message }
+        ];
+    }
+
     return callWithRetry(async () => {
         const chat = ai.chats.create({ model, history, config });
-        let result = await chat.sendMessage({ message });
+        let result = await chat.sendMessage({ message: messageContent });
         
         const toolCalls = result.candidates?.[0]?.content?.parts?.filter((p: any) => p.functionCall);
         
@@ -400,7 +472,8 @@ export const chatWithNutritionist = async (
                         name: args.foodName,
                         calories: args.calories,
                         macros: { protein: args.protein, carbs: args.carbs, fats: args.fats },
-                        description: args.description || `Uma porção nutritiva de ${args.foodName}.`
+                        description: args.description || `Uma porção nutritiva de ${args.foodName}.`,
+                        emoji: args.emoji || "🍽️"
                     }, args.mealType);
 
                     functionResponseParts.push({
@@ -430,3 +503,76 @@ export const chatWithNutritionist = async (
         return result.text;
     });
 }
+
+// HUMAN COACH PERSONA
+export const chatWithPersonalTrainer = async (
+    history: {role: string, parts: {text: string}[]}[], 
+    message: string,
+    profile?: UserProfile | null,
+    dailyLog?: LogItem[] | null,
+    attachment?: { data: string, mimeType: string }
+) => {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    
+    // Sanitize log for token limit
+    const sanitize = (key: string, value: any) => {
+        if (key === 'image') return undefined; // Remove large images from history context
+        return value;
+    };
+
+    const todayLogSummary = dailyLog ? JSON.stringify(dailyLog, sanitize) : "Nenhum registro hoje.";
+
+    let systemInstruction = `
+      Você é o **Coach Bruno**, um Nutricionista Humano e Treinador Comportamental que atende pelo app Nutri.ai.
+      
+      **SUA PERSONA:**
+      - Você NÃO é um robô. Aja como um humano real conversando no WhatsApp/Chat.
+      - Você é focado em **ACCOUNTABILITY** (Prestação de Contas).
+      - Seu tom é: Profissional, Direto, Motivador, mas cobra disciplina.
+      - Use gírias leves do mundo fitness (ex: "foco", "bater os macros", "sem errar", "tá pago").
+      - Use emojis, mas não exagere.
+      
+      **DADOS DO ALUNO:**
+      ${profile ? `- Nome: ${profile.name}
+      - Objetivo: ${profile.goal}
+      - Restrições: ${profile.restrictions || 'Nenhuma'}
+      ` : 'Perfil não informado.'}
+
+      **DIÁRIO ALIMENTAR DE HOJE (O que ele comeu até agora):**
+      ${todayLogSummary}
+
+      **MISSÃO DA SEMANA:**
+      Zero Álcool e 3L de Água por dia.
+
+      **SUAS TAREFAS:**
+      1. Se o aluno mandar "Enviei meu diário", ANALISE os dados acima. Se ele comeu besteira, COBRE. Se comeu bem, ELOGIE. Dê uma nota de 0 a 10 para o dia.
+      2. Se o aluno mandar uma foto de prato, analise se parece saudável e dê um veredito (Aprovado/Reprovado).
+      3. Se o aluno reclamar de fome/preguiça, dê uma bronca motivacional.
+      4. Mantenha as respostas curtas, como num chat real.
+
+      Idioma: Português do Brasil.
+    `;
+
+    const config = {
+        systemInstruction: systemInstruction,
+        temperature: 0.8, // Slightly higher for human-like variance
+    };
+
+    // Handle Image Attachment in Message
+    const messageParts: any[] = [{ text: message }];
+    if (attachment) {
+        messageParts.unshift({ inlineData: { mimeType: attachment.mimeType, data: attachment.data } });
+        // Update instructions for image analysis
+        messageParts.push({ text: "\n[SISTEMA: O usuário enviou uma imagem (foto do prato ou do corpo). Analise como um Coach Nutricional. Se for comida, diga se aprova ou não.]" });
+    }
+
+    return callWithRetry(async () => {
+        const chat = ai.chats.create({ 
+            model: "gemini-2.5-flash", 
+            history, 
+            config 
+        });
+        const result = await chat.sendMessage({ message: messageParts });
+        return result.text;
+    });
+};

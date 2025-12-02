@@ -20,6 +20,19 @@ export enum Gender {
   Other = "Other"
 }
 
+export interface PantryItem {
+  id: string;
+  name: string;
+  quantity?: string;
+  expiryDate?: string;
+}
+
+export interface KnowledgeBase {
+  name: string;
+  mimeType: string;
+  data: string; // Base64
+}
+
 export interface UserProfile {
   name: string;
   age: number;
@@ -37,6 +50,10 @@ export interface UserProfile {
   lastActiveDate: string; // Data do último acesso (ISO)
   avatar?: string;        // User's personal photo
   chefAvatar?: string;    // Custom avatar for the AI Chef
+  pantryItems?: PantryItem[]; // Itens cadastrados na despensa
+  customChatInstructions?: string; // Prompt personalizado para o chat
+  aiVoice?: string; // 'Puck', 'Charon', 'Kore', 'Fenrir', 'Zephyr'
+  knowledgeBase?: KnowledgeBase; // Arquivo de contexto (PDF/TXT/IMG)
 }
 
 export interface MacroNutrients {
@@ -52,6 +69,7 @@ export interface MealItem {
   description: string;
   substitutions?: string[];
   image?: string;
+  emoji?: string; // New field for Emoji representation
 }
 
 export interface LogItem extends MealItem {
@@ -87,6 +105,7 @@ export interface ChatMessage {
   text: string;
   image?: string;
   timestamp: number;
+  isSystemEvent?: boolean; // Para mensagens de log enviadas automaticamente
 }
 
 export interface WellnessState {
@@ -99,7 +118,12 @@ export interface WellnessState {
       water: boolean;
       sleep: boolean;
       meals: boolean;
-  }
+  };
+  notificationTimes: {
+      water: string;
+      sleep: string;
+      meals: string;
+  };
 }
 
 export interface Recipe {
@@ -109,6 +133,7 @@ export interface Recipe {
   description: string;
   steps: string[];
   image?: string;
+  emoji?: string;
 }
 
 export interface Article {
@@ -121,8 +146,6 @@ export interface Article {
 
 export type AppView = 
   | 'landing'
-  | 'invite_code'      // Nova tela: entrada de código de convite
-  | 'login_register'   // Nova tela: login ou cadastro após validar cupom
   | 'onboarding' 
   | 'generating' 
   | 'diet_plan'
@@ -133,10 +156,10 @@ export type AppView =
   | 'live'
   | 'smart_meal'
   | 'progress'
-  | 'reports'
   | 'wellness'
   | 'challenges'
   | 'library'
   | 'profile'
   | 'security'
-  | 'settings';
+  | 'settings'
+  | 'personal_chat';

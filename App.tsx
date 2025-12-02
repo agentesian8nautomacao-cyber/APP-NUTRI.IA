@@ -1,13 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
-import { UserProfile, DailyPlan, LogItem, MealItem, WellnessState, AppView, ScanHistoryItem } from './types';
-import { generateDietPlan, generateFoodImageAI } from './services/geminiService';
-import { supabase } from './services/supabaseClient';
+import { UserProfile, DailyPlan, LogItem, MealItem, WellnessState, AppView, ScanHistoryItem, Gender, ActivityLevel, Goal } from './types';
+import { generateDietPlan } from './services/geminiService';
 
 // Components
 import LandingPage from './components/LandingPage';
-import InviteCodeEntry from './components/InviteCodeEntry';
-import LoginOrRegister from './components/LoginOrRegister';
 import Onboarding from './components/Onboarding';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
@@ -16,24 +13,103 @@ import DiaryView from './components/DiaryView';
 import SmartMeal from './components/SmartMeal';
 import PlateAnalyzer from './components/PlateAnalyzer';
 import ProgressView from './components/ProgressView';
-import ReportsView from './components/ReportsView';
 import WellnessPlan from './components/WellnessPlan';
 import ChallengesView from './components/ChallengesView';
 import Library from './components/Library';
 import ChatAssistant from './components/ChatAssistant';
 import LiveConversation from './components/LiveConversation';
 import ProfileView from './components/ProfileView';
-import { authService } from './services/supabaseService';
+import SettingsView from './components/SettingsView';
+import PersonalChat from './components/PersonalChat';
 
 import { MessageCircle, Camera, Home, Menu, BookOpen, Phone, User } from 'lucide-react';
+
+// MOCK DATA FOR DEV SKIP
+const MOCK_USER: UserProfile = {
+    name: "Usuário Teste",
+    age: 30,
+    gender: Gender.Female,
+    height: 170,
+    weight: 65,
+    activityLevel: ActivityLevel.Moderate,
+    goal: Goal.LoseWeight,
+    restrictions: "Nenhuma",
+    mealsPerDay: 4,
+    medicalHistory: "Nenhum",
+    routineDescription: "Trabalho em escritório",
+    foodPreferences: "Gosto de tudo",
+    streak: 5,
+    lastActiveDate: new Date().toISOString(),
+    pantryItems: [
+        { id: "1", name: "Aveia" },
+        { id: "2", name: "Mel" },
+        { id: "3", name: "Ovos" }
+    ],
+    customChatInstructions: "Seja um nutricionista muito rigoroso e use emojis de fogo.",
+    aiVoice: 'Kore'
+};
+
+const MOCK_PLAN: DailyPlan = {
+    totalCalories: 1800,
+    targetMacros: { protein: 120, carbs: 180, fats: 60 },
+    nutritionalAnalysis: "Este plano é focado em alta densidade nutricional com déficit calórico moderado para perda de peso sustentável.",
+    meals: [
+        {
+            type: "Breakfast",
+            items: [{
+                name: "Ovos Mexidos com Espinafre",
+                calories: 350,
+                macros: { protein: 20, carbs: 5, fats: 25 },
+                description: "Rico em proteínas e ferro para começar o dia.",
+                substitutions: ["Tofu mexido", "Ovo cozido"],
+                emoji: "🍳"
+            }]
+        },
+        {
+            type: "Lunch",
+            items: [{
+                name: "Filé de Frango Grelhado com Salada",
+                calories: 500,
+                macros: { protein: 45, carbs: 10, fats: 15 },
+                description: "Almoço leve e proteico.",
+                substitutions: ["Peixe branco", "Grão de bico"],
+                emoji: "🍗"
+            }]
+        },
+         {
+            type: "Snack",
+            items: [{
+                name: "Iogurte Natural com Frutas",
+                calories: 200,
+                macros: { protein: 10, carbs: 25, fats: 5 },
+                description: "Cálcio e fibras para a tarde.",
+                substitutions: ["Leite de amêndoas", "Fruta inteira"],
+                emoji: "🍓"
+            }]
+        },
+        {
+            type: "Dinner",
+            items: [{
+                name: "Sopa de Legumes",
+                calories: 300,
+                macros: { protein: 10, carbs: 40, fats: 5 },
+                description: "Jantar de fácil digestão.",
+                substitutions: ["Salada de folhas", "Wrap de vegetais"],
+                emoji: "🥣"
+            }]
+        }
+    ],
+    behavioralTips: ["Beba água antes das refeições", "Mastigue devagar"],
+    shoppingList: ["Ovos", "Espinafre", "Frango", "Iogurte"],
+    hydrationTarget: 2500,
+    notes: "Foco na consistência."
+};
 
 const App: React.FC = () => {
   // --- State Management ---
   const [view, setView] = useState<AppView>('landing');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
-  const [validatedInviteCode, setValidatedInviteCode] = useState<string | null>(null);
 
   // Swipe Gesture State
   const [touchStart, setTouchStart] = useState<{x: number, y: number} | null>(null);
@@ -49,6 +125,9 @@ const App: React.FC = () => {
   const [dailyLog, setDailyLog] = useState<LogItem[]>([]);
   const [scanHistory, setScanHistory] = useState<ScanHistoryItem[]>([]);
   
+  // Pending Chat Message (Auto-send when opening chat)
+  const [pendingChatMessage, setPendingChatMessage] = useState<string | null>(null);
+
   const [wellness, setWellness] = useState<WellnessState>({
     mood: null,
     waterGlasses: 0,
@@ -63,6 +142,11 @@ const App: React.FC = () => {
         water: true,
         sleep: true,
         meals: false
+    },
+    notificationTimes: {
+        water: "09:00",
+        sleep: "22:00",
+        meals: "12:00"
     }
   });
 
@@ -84,60 +168,6 @@ const App: React.FC = () => {
       }
   }, [isGenerating]);
 
-  // Verificar autenticação ao carregar o app
-  useEffect(() => {
-      const checkAuth = async () => {
-          setIsCheckingAuth(true);
-          try {
-              const { data: { session } } = await supabase.auth.getSession();
-              
-              if (session?.user) {
-                  // Usuário já está logado, carregar perfil e ir para dashboard
-                  const profile = await authService.getCurrentUserProfile();
-                  if (profile) {
-                      setUserProfile(profile);
-                      setView('dashboard');
-                  } else {
-                      // Usuário logado mas sem perfil, precisa fazer onboarding
-                      setView('onboarding');
-                  }
-              } else {
-                  // Usuário não está logado, mostrar tela de cupom
-                  setView('invite_code');
-              }
-          } catch (err) {
-              console.error('❌ Erro ao verificar autenticação:', err);
-              setView('invite_code');
-          } finally {
-              setIsCheckingAuth(false);
-          }
-      };
-      
-      checkAuth();
-
-      // Escutar mudanças de autenticação
-      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-          if (event === 'SIGNED_IN' && session?.user) {
-              const profile = await authService.getCurrentUserProfile();
-              if (profile) {
-                  setUserProfile(profile);
-                  if (view === 'login_register') {
-                      // Se acabou de fazer login/cadastro, verificar se tem perfil
-                      // Se não tiver, ir para onboarding
-                      setView('onboarding');
-                  }
-              }
-          } else if (event === 'SIGNED_OUT') {
-              setUserProfile(null);
-              setView('invite_code');
-          }
-      });
-
-      return () => {
-          subscription.unsubscribe();
-      };
-  }, []);
-
   // --- Handlers ---
 
   const handleOnboardingComplete = async (profile: UserProfile) => {
@@ -157,35 +187,40 @@ const App: React.FC = () => {
     }
   };
 
+  const handleRegeneratePlan = async (instructions: string, attachment?: { data: string, mimeType: string }, usePantry: boolean = true) => {
+      if (!userProfile) return;
+      try {
+          const newPlan = await generateDietPlan(userProfile, instructions, attachment, usePantry);
+          setDietPlan(newPlan);
+      } catch (error) {
+          console.error("Error regenerating plan", error);
+          alert("Erro ao regenerar plano. Tente novamente.");
+      }
+  };
+
+  // DEV FUNCTION: Skip generation
+  const handleDevSkip = () => {
+      setUserProfile(MOCK_USER);
+      setDietPlan(MOCK_PLAN);
+      setView('dashboard');
+  };
+
   const handleAddFood = (item: MealItem, type: string) => {
       const newItem: LogItem = {
           ...item,
           id: Date.now().toString(),
           timestamp: Date.now(),
-          type: type as any
+          type: type as any,
+          // Use provided emoji, or default to a generic one based on type
+          emoji: item.emoji || (type === "Breakfast" ? "🍳" : type === "Lunch" ? "🍗" : type === "Dinner" ? "🥗" : "🍎")
       };
       
-      // 1. Add immediately (Optimistic UI)
+      // 1. Add immediately (Optimistic UI) - Removed Image Generation
       setDailyLog(prev => [...prev, newItem]);
+  };
 
-      // 2. Trigger AI Image Generation in background
-      // Only generate if the item doesn't already have a specific base64 image (e.g. from scanner)
-      const hasUserImage = item.image && item.image.startsWith('data:');
-      
-      if (!hasUserImage) {
-          generateFoodImageAI(item.name).then((generatedImage) => {
-              if (generatedImage) {
-                  // 3. Update the specific item with the new image
-                  setDailyLog(prevLogs => 
-                      prevLogs.map(log => 
-                          log.id === newItem.id 
-                              ? { ...log, image: generatedImage }
-                              : log
-                      )
-                  );
-              }
-          }).catch(err => console.error("Error generating food image:", err));
-      }
+  const handleRemoveFood = (id: string) => {
+      setDailyLog(prev => prev.filter(item => item.id !== id));
   };
 
   const handleScanComplete = (item: MealItem, scannedImage: string) => {
@@ -198,9 +233,23 @@ const App: React.FC = () => {
       };
       setScanHistory(prev => [historyItem, ...prev]);
 
-      // Add to daily log
-      handleAddFood(item, "Lunch"); // Default to Lunch for simplicity
+      // Add to daily log (Use image from scan)
+      const newItem: LogItem = {
+          ...item,
+          id: Date.now().toString(),
+          timestamp: Date.now(),
+          type: "Lunch", // Default
+          image: scannedImage, // KEEP SCANNED IMAGE
+          emoji: item.emoji || "📸"
+      };
+      
+      setDailyLog(prev => [...prev, newItem]);
       setIsScannerOpen(false);
+  };
+
+  const handleShareToPersonal = (message: string) => {
+      setPendingChatMessage(message);
+      setView('personal_chat');
   };
 
   const handleUpdateProfile = (updatedProfile: UserProfile) => {
@@ -244,67 +293,13 @@ const App: React.FC = () => {
 
   // --- View Rendering ---
 
-  // Loading state enquanto verifica autenticação
-  if (isCheckingAuth) {
-      return (
-          <div className="min-h-screen bg-[#F5F1E8] flex items-center justify-center">
-              <div className="text-center">
-                  <div className="text-6xl mb-4 animate-bounce">🍎</div>
-                  <p className="text-[#4F6F52] font-medium">Carregando...</p>
-              </div>
-          </div>
-      );
-  }
-
-  // Fluxo de primeiro acesso: Cupom → Login/Cadastro → Onboarding
-  if (view === 'invite_code') {
-      return (
-          <InviteCodeEntry
-              onCodeValid={(code) => {
-                  setValidatedInviteCode(code);
-                  setView('login_register');
-              }}
-              onBack={() => setView('landing')}
-          />
-      );
-  }
-
-  if (view === 'login_register') {
-      return (
-          <LoginOrRegister
-              inviteCode={validatedInviteCode || undefined}
-              onComplete={async () => {
-                  // Verificar se o usuário tem perfil
-                  const profile = await authService.getCurrentUserProfile();
-                  if (profile) {
-                      setUserProfile(profile);
-                      setView('dashboard');
-                  } else {
-                      setView('onboarding');
-                  }
-              }}
-              onBack={() => {
-                  if (validatedInviteCode) {
-                      setValidatedInviteCode(null);
-                      setView('invite_code');
-                  } else {
-                      setView('landing');
-                  }
-              }}
-          />
-      );
-  }
-
   if (view === 'landing') {
       return (
-          <LandingPage 
-              onGetStarted={() => setView('invite_code')} 
-              onAnalyze={() => {
-                  // "Já tenho conta" - ir direto para login (sem cupom)
-                  setValidatedInviteCode(null);
-                  setView('login_register');
-              }} 
-          />
+        <LandingPage 
+            onGetStarted={() => setView('onboarding')} 
+            onAnalyze={() => setIsScannerOpen(true)}
+            onDevSkip={handleDevSkip}
+        />
       );
   }
 
@@ -397,15 +392,36 @@ const App: React.FC = () => {
                     wellness={wellness}
                     setWellness={setWellness}
                     onAddFood={handleAddFood}
+                    onRemoveFood={handleRemoveFood}
+                    onShareToPersonal={handleShareToPersonal}
                     onAnalyze={() => setIsScannerOpen(true)}
                     onChat={() => setIsChatOpen(true)}
                     onNavigate={setView}
                     onMenuClick={() => setIsSidebarOpen(true)}
                 />
             )}
-            {view === 'diet_plan' && dietPlan && <DietPlanView plan={dietPlan} />}
-            {view === 'diary' && dietPlan && <DiaryView plan={dietPlan} dailyLog={dailyLog} onAddFood={handleAddFood} />}
-            {view === 'smart_meal' && <SmartMeal />}
+            {view === 'diet_plan' && dietPlan && (
+                <DietPlanView 
+                    plan={dietPlan} 
+                    userProfile={userProfile}
+                    onRegenerate={handleRegeneratePlan}
+                />
+            )}
+            {view === 'diary' && dietPlan && (
+                <DiaryView 
+                    plan={dietPlan} 
+                    dailyLog={dailyLog} 
+                    onAddFood={handleAddFood} 
+                    onRemoveFood={handleRemoveFood}
+                    onShareToPersonal={handleShareToPersonal}
+                />
+            )}
+            {view === 'smart_meal' && (
+                <SmartMeal 
+                    userProfile={userProfile}
+                    onUpdateProfile={handleUpdateProfile}
+                />
+            )}
             {view === 'analyzer' && (
                  <PlateAnalyzer 
                     onClose={() => setView('dashboard')} // Go back if close on full view
@@ -413,18 +429,34 @@ const App: React.FC = () => {
                     history={scanHistory}
                  />
             )}
+            {view === 'personal_chat' && (
+                <PersonalChat 
+                    userProfile={userProfile} 
+                    dailyLog={dailyLog}
+                    wellness={wellness}
+                    onBack={() => setView('dashboard')}
+                    initialMessage={pendingChatMessage}
+                    onClearInitialMessage={() => setPendingChatMessage(null)}
+                />
+            )}
             {view === 'progress' && <ProgressView />}
-            {view === 'reports' && <ReportsView />}
             {view === 'wellness' && <WellnessPlan state={wellness} onUpdate={setWellness} />}
             {view === 'challenges' && <ChallengesView />}
             {view === 'library' && <Library />}
             {view === 'profile' && userProfile && <ProfileView user={userProfile} onUpdate={handleUpdateProfile} onBack={() => setView('dashboard')} />}
-            {view === 'settings' && <div className="p-6"><h2 className="font-serif text-2xl text-[#1A4D2E]">Configurações (Em Breve)</h2></div>}
+            {view === 'settings' && userProfile && (
+                <SettingsView 
+                    state={wellness} 
+                    onUpdate={setWellness} 
+                    userProfile={userProfile} 
+                    onUpdateProfile={handleUpdateProfile} 
+                />
+            )}
             {view === 'security' && <div className="p-6"><h2 className="font-serif text-2xl text-[#1A4D2E]">Privacidade (Em Breve)</h2></div>}
         </main>
 
         {/* Bottom Navigation & Floating Actions */}
-        {!isScannerOpen && view !== 'analyzer' && !isChatOpen && !isLiveOpen && view !== 'profile' && (
+        {!isScannerOpen && view !== 'analyzer' && !isChatOpen && !isLiveOpen && view !== 'profile' && view !== 'personal_chat' && (
             <>
                 {/* Call Chef Button (Floating above menu) */}
                 <button 
@@ -501,6 +533,7 @@ const App: React.FC = () => {
                 dietPlan={dietPlan}
                 dailyLog={dailyLog}
                 onAddFood={handleAddFood}
+                onRemoveFood={handleRemoveFood}
             />
         )}
 

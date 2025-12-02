@@ -1,9 +1,8 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, X, Bot, Globe, BrainCircuit, Mic, StopCircle, Loader2, Phone, ChefHat, Sparkles } from 'lucide-react';
+import { Send, X, Bot, Loader2, Phone, ChefHat, Sparkles } from 'lucide-react';
 import { ChatMessage, UserProfile, DailyPlan, LogItem, MealItem } from '../types';
-import { chatWithNutritionist, transcribeAudio } from '../services/geminiService';
-import { authService, limitsService } from '../services/supabaseService';
+import { chatWithNutritionist } from '../services/geminiService';
 
 interface ChatAssistantProps {
   onClose: () => void;
@@ -125,15 +124,6 @@ const ChatAssistant: React.FC<ChatAssistantProps> = ({ onClose, onLiveCall, user
   ]);
   const [isLoading, setIsLoading] = useState(false);
   
-  // Feature Toggles
-  const [useThinking, setUseThinking] = useState(false);
-  const [useSearch, setUseSearch] = useState(false);
-  
-  // Audio Recording
-  const [isRecording, setIsRecording] = useState(false);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -159,26 +149,6 @@ const ChatAssistant: React.FC<ChatAssistantProps> = ({ onClose, onLiveCall, user
     setIsLoading(true);
 
     try {
-      // Rate limit de texto por usuário
-      const user = await authService.getCurrentUser();
-      if (user) {
-        try {
-          await limitsService.registerTextMessage(user.id);
-        } catch (err: any) {
-          if (err instanceof Error && err.message === 'TEXT_LIMIT_REACHED') {
-            const limitMsg: ChatMessage = {
-              id: Date.now().toString() + '_limit',
-              role: 'model',
-              text: '⚠️ **Limite de segurança diário atingido.**\n\nVocê já enviou o número máximo de mensagens de hoje.',
-              timestamp: Date.now(),
-            };
-            setMessages(prev => [...prev, limitMsg]);
-            return;
-          }
-          console.error('Erro ao registrar mensagem de texto:', err);
-        }
-      }
-
       const history = messages.map(m => ({
         role: m.role,
         parts: [{ text: m.text }]
@@ -188,7 +158,7 @@ const ChatAssistant: React.FC<ChatAssistantProps> = ({ onClose, onLiveCall, user
         history, 
         userMsg.text,
         { profile: userProfile, plan: dietPlan, log: dailyLog }, // Context
-        { useThinking, useSearch }, // Features
+        {}, // Options removed
         (data, type) => { // onLogMeal callback
              if(onAddFood) {
                  onAddFood(data, type);
@@ -223,57 +193,6 @@ const ChatAssistant: React.FC<ChatAssistantProps> = ({ onClose, onLiveCall, user
     }
   };
 
-  // Audio Recording Logic
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-
-      mediaRecorder.start();
-      setIsRecording(true);
-    } catch (err) {
-      console.error("Error accessing microphone:", err);
-      alert("Não foi possível acessar o microfone.");
-    }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorderRef.current) {
-      mediaRecorderRef.current.stop();
-      mediaRecorderRef.current.onstop = async () => {
-        setIsRecording(false);
-        const mimeType = mediaRecorderRef.current?.mimeType || 'audio/webm';
-        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
-        
-        // Convert to Base64
-        const reader = new FileReader();
-        reader.readAsDataURL(audioBlob);
-        reader.onloadend = async () => {
-          const base64Audio = (reader.result as string).split(',')[1];
-          setIsLoading(true);
-          try {
-            const transcription = await transcribeAudio(base64Audio, mimeType);
-            if (transcription) {
-              setInput(transcription);
-            }
-          } catch (e) {
-            console.error(e);
-          } finally {
-            setIsLoading(false);
-          }
-        };
-      };
-    }
-  };
-
   return (
     <div className="fixed inset-0 bg-[#F5F1E8] z-50 flex flex-col animate-in slide-in-from-bottom duration-300">
       {/* Header */}
@@ -285,8 +204,8 @@ const ChatAssistant: React.FC<ChatAssistantProps> = ({ onClose, onLiveCall, user
           <div>
             <h3 className="font-serif text-xl text-[#1A4D2E]">Chef IA</h3>
             <span className="text-xs text-[#4F6F52] font-medium flex items-center gap-1 bg-[#F5F1E8] px-2 py-0.5 rounded-full w-fit">
-              <span className={`w-2 h-2 rounded-full ${useThinking ? 'bg-purple-500' : 'bg-green-500'} animate-pulse`}></span> 
-              {useThinking ? "Modo Pensador" : useSearch ? "Modo Pesquisa" : "Online"}
+              <span className={`w-2 h-2 rounded-full bg-green-500 animate-pulse`}></span> 
+              Online
             </span>
           </div>
         </div>
@@ -316,9 +235,9 @@ const ChatAssistant: React.FC<ChatAssistantProps> = ({ onClose, onLiveCall, user
           <div className="flex justify-start">
             <div className="bg-white p-5 rounded-[2rem] rounded-tl-none shadow-sm">
                <div className="flex space-x-2 items-center text-[#1A4D2E]">
-                  {useThinking ? <BrainCircuit className="animate-pulse mr-2" size={16} /> : <Sparkles className="animate-spin mr-2 text-yellow-500" size={16} />}
+                  <Sparkles className="animate-spin mr-2 text-yellow-500" size={16} />
                   <span className="text-sm font-serif text-[#4F6F52]">
-                    {useThinking ? "Pensando profundamente..." : "Escrevendo..."}
+                    Escrevendo...
                   </span>
                </div>
             </div>
@@ -329,58 +248,19 @@ const ChatAssistant: React.FC<ChatAssistantProps> = ({ onClose, onLiveCall, user
 
       {/* Input Area */}
       <div className="p-4 bg-[#F5F1E8]">
-        {/* Features Toolbar */}
-        <div className="flex gap-3 mb-3 px-2 overflow-x-auto no-scrollbar">
-           <button 
-             onClick={() => { setUseThinking(!useThinking); setUseSearch(false); }}
-             className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all border ${
-               useThinking 
-               ? 'bg-[#1A4D2E] text-white border-[#1A4D2E] shadow-md' 
-               : 'bg-white text-[#4F6F52] border-gray-100 hover:border-[#1A4D2E]/20'
-             }`}
-           >
-             <BrainCircuit size={14} /> Deep Think
-           </button>
-           
-           <button 
-             onClick={() => { setUseSearch(!useSearch); setUseThinking(false); }}
-             className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all border ${
-               useSearch 
-               ? 'bg-blue-600 text-white border-blue-600 shadow-md' 
-               : 'bg-white text-[#4F6F52] border-gray-100 hover:border-blue-200'
-             }`}
-           >
-             <Globe size={14} /> Web Search
-           </button>
-        </div>
-
         <div className="flex items-center gap-2 bg-white rounded-[2.5rem] px-2 py-2 shadow-xl border border-[#1A4D2E]/5">
-          
-          {/* Audio Button */}
-          <button 
-            onClick={isRecording ? stopRecording : startRecording}
-            className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 ${
-              isRecording 
-              ? 'bg-red-500 text-white animate-pulse shadow-red-200 shadow-lg' 
-              : 'bg-gray-50 text-[#1A4D2E] hover:bg-gray-100'
-            }`}
-          >
-            {isRecording ? <StopCircle size={22} /> : <Mic size={22} />}
-          </button>
-
           <input 
             type="text" 
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            placeholder={isRecording ? "Ouvindo..." : "Digite algo..."}
-            disabled={isRecording}
-            className="flex-1 bg-transparent outline-none text-[#1A4D2E] placeholder:text-[#1A4D2E]/30 px-3 font-medium text-lg"
+            placeholder="Digite algo..."
+            className="flex-1 bg-transparent outline-none text-[#1A4D2E] placeholder:text-[#1A4D2E]/30 px-6 font-medium text-lg"
           />
           
           <button 
             onClick={handleSend}
-            disabled={!input.trim() || isLoading || isRecording}
+            disabled={!input.trim() || isLoading}
             className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 ${
               input.trim() 
               ? 'bg-[#1A4D2E] text-[#F5F1E8] hover:scale-110 shadow-lg' 

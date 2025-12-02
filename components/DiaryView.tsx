@@ -1,16 +1,18 @@
 
 import React, { useState } from 'react';
 import { DailyPlan, LogItem, MealItem } from '../types';
-import { Plus, ChevronDown, ChevronUp, Calendar as CalendarIcon, Search, X, Loader2 } from 'lucide-react';
+import { Plus, ChevronDown, ChevronUp, Calendar as CalendarIcon, Search, X, Loader2, Trash2, MessageCircle, Send } from 'lucide-react';
 import { searchFoodAI } from '../services/geminiService';
 
 interface DiaryViewProps {
   plan: DailyPlan;
   dailyLog: LogItem[];
   onAddFood: (item: MealItem, type: string) => void;
+  onRemoveFood: (id: string) => void;
+  onShareToPersonal: (msg: string) => void;
 }
 
-const DiaryView: React.FC<DiaryViewProps> = ({ plan, dailyLog, onAddFood }) => {
+const DiaryView: React.FC<DiaryViewProps> = ({ plan, dailyLog, onAddFood, onRemoveFood, onShareToPersonal }) => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [expandedSection, setExpandedSection] = useState<string | null>('Breakfast');
   
@@ -58,6 +60,30 @@ const DiaryView: React.FC<DiaryViewProps> = ({ plan, dailyLog, onAddFood }) => {
       setIsModalOpen(false);
   };
 
+  const handleShareSummary = (sectionId: string, label: string, items: LogItem[]) => {
+      const totalKcal = items.reduce((acc, i) => acc + i.calories, 0);
+      const itemList = items.map(i => `- ${i.name} (${i.calories} kcal)`).join('\n');
+      
+      const message = `📋 **Resumo do ${label}**\n\n${itemList}\n\n**Total:** ${totalKcal} kcal\n\nCoach, o que achou dessa refeição?`;
+      onShareToPersonal(message);
+  };
+
+  const handleShareItem = (item: LogItem) => {
+      const message = `Olha o que eu comi: **${item.name}** (${item.calories} kcal).`;
+      onShareToPersonal(message);
+  };
+
+  const renderIcon = (item: MealItem) => {
+      if (item.image && item.image.startsWith('data:')) {
+          return <img src={item.image} className="w-12 h-12 rounded-xl object-cover" />;
+      }
+      return (
+          <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center text-2xl border border-[#1A4D2E]/10">
+              {item.emoji || "🍽️"}
+          </div>
+      );
+  };
+
   return (
     <div className="pb-28 min-h-screen bg-[#F5F1E8] text-[#1A4D2E] animate-in fade-in duration-500">
       
@@ -75,9 +101,12 @@ const DiaryView: React.FC<DiaryViewProps> = ({ plan, dailyLog, onAddFood }) => {
                   </div>
                   <div className="max-h-60 overflow-y-auto space-y-2">
                       {results.map((item, idx) => (
-                          <button key={idx} onClick={() => handleAdd(item)} className="w-full p-3 hover:bg-[#F5F1E8] rounded-xl text-left flex justify-between">
-                              <span>{item.name}</span>
-                              <span className="text-xs font-bold">{item.calories} kcal</span>
+                          <button key={idx} onClick={() => handleAdd(item)} className="w-full p-3 hover:bg-[#F5F1E8] rounded-xl text-left flex justify-between items-center">
+                              <span className="flex items-center gap-2 text-xl">
+                                  <span>{item.emoji}</span>
+                                  <span className="text-base font-bold text-[#1A4D2E]">{item.name}</span>
+                              </span>
+                              <span className="text-xs font-bold text-[#4F6F52]">{item.calories} kcal</span>
                           </button>
                       ))}
                   </div>
@@ -123,10 +152,40 @@ const DiaryView: React.FC<DiaryViewProps> = ({ plan, dailyLog, onAddFood }) => {
                     </div>
                     {isExpanded && (
                         <div className="px-5 pb-5 animate-in slide-in-from-top duration-300 space-y-3">
+                            {/* Summary Share Button */}
+                            {items.length > 0 && (
+                                <button 
+                                    onClick={() => handleShareSummary(section.id, section.label, items)}
+                                    className="w-full mb-3 flex items-center justify-center gap-2 py-2 bg-orange-50 text-orange-600 rounded-xl text-xs font-bold hover:bg-orange-100 transition-colors border border-orange-100"
+                                >
+                                    <Send size={12} /> Enviar Resumo para Personal
+                                </button>
+                            )}
+
                             {items.length > 0 ? items.map((item, idx) => (
-                                <div key={idx} className="flex items-center gap-3 p-3 bg-[#F5F1E8] rounded-2xl">
-                                    <div className="w-12 h-12 rounded-xl bg-white overflow-hidden"><img src={item.image || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c"} className="w-full h-full object-cover" /></div>
-                                    <div className="flex-1"><div className="font-bold text-[#1A4D2E] text-sm">{item.name}</div><div className="text-xs text-[#4F6F52]">{item.calories} kcal</div></div>
+                                <div key={idx} className="flex items-center gap-3 p-3 bg-[#F5F1E8] rounded-2xl group">
+                                    {renderIcon(item)}
+                                    <div className="flex-1 min-w-0">
+                                        <div className="font-bold text-[#1A4D2E] text-sm truncate">{item.name}</div>
+                                        <div className="text-xs text-[#4F6F52]">{item.calories} kcal</div>
+                                    </div>
+                                    {/* Action Icons */}
+                                    <div className="flex gap-2">
+                                        <button 
+                                            onClick={() => handleShareItem(item)}
+                                            className="p-2 bg-white text-blue-500 rounded-full shadow-sm hover:scale-110 transition-transform"
+                                            title="Enviar para Coach"
+                                        >
+                                            <MessageCircle size={14} />
+                                        </button>
+                                        <button 
+                                            onClick={() => onRemoveFood(item.id)}
+                                            className="p-2 bg-white text-red-400 rounded-full shadow-sm hover:text-red-600 hover:scale-110 transition-transform"
+                                            title="Remover"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </div>
                                 </div>
                             )) : <div className="text-center py-4 text-sm text-gray-400 italic">Nenhum registro.</div>}
                         </div>

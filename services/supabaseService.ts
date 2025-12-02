@@ -857,19 +857,57 @@ export const progressService = {
 export const limitsService = {
   /**
    * Verifica e consome limite de VOZ (segundos) para a sessão atual.
-   * Fluxo:
-   * 1) Reseta contadores diários se last_voice_usage_date != hoje
-   * 2) Consome primeiro de voice_daily_limit_seconds
-   * 3) Se acabar, consome de voice_balance_upsell
-   * 4) Se não houver saldo, lança erro
+   * NOVA LÓGICA COM PRIORIDADES:
+   * 1) VIP (PREMIUM_UNLIMITED ativo) - não desconta nada
+   * 2) Gratuito (daily_free_minutes) - desconta primeiro
+   * 3) Boost (boost_minutes_balance) - desconta segundo (expira em 24h)
+   * 4) Reserva (reserve_bank_balance) - desconta terceiro (não expira)
+   * 5) Se não houver saldo, lança erro LIMIT_REACHED
    */
   async consumeVoiceSeconds(userId: string, seconds: number) {
-    const today = new Date().toISOString().split('T')[0];
+    const minutes = Math.ceil(seconds / 60); // Converter segundos para minutos (arredondar para cima)
 
+    // Usar função SQL para consumo com prioridades
+    const { data, error } = await supabase.rpc('consume_voice_time', {
+      p_user_id: userId,
+      p_minutes: minutes,
+    });
+
+    if (error) {
+      console.error('Erro ao consumir tempo de voz:', error);
+      throw error;
+    }
+
+    if (!data || !data.success) {
+      const errorMsg = data?.error || 'LIMIT_REACHED';
+      throw new Error(errorMsg);
+    }
+
+    // Converter minutos de volta para segundos para retorno
+    const remainingFreeSeconds = (data.remaining_free || 0) * 60;
+    const remainingBoostSeconds = (data.remaining_boost || 0) * 60;
+    const remainingReserveSeconds = (data.remaining_reserve || 0) * 60;
+
+    return {
+      isVip: data.is_vip || false,
+      consumedFromFree: (data.consumed_from_free || 0) * 60,
+      consumedFromBoost: (data.consumed_from_boost || 0) * 60,
+      consumedFromReserve: (data.consumed_from_reserve || 0) * 60,
+      remainingFreeSeconds,
+      remainingBoostSeconds,
+      remainingReserveSeconds,
+      totalRemainingSeconds: remainingFreeSeconds + remainingBoostSeconds + remainingReserveSeconds,
+    };
+  },
+
+  /**
+   * Obtém saldos disponíveis de voz (sem consumir)
+   */
+  async getVoiceBalances(userId: string) {
     const { data, error } = await supabase
       .from('user_profiles')
       .select(
-        'id, voice_daily_limit_seconds, voice_used_today_seconds, voice_balance_upsell, last_voice_usage_date'
+        'subscription_status, subscription_expiry, daily_free_minutes, boost_minutes_balance, boost_expiry, reserve_bank_balance'
       )
       .eq('user_id', userId)
       .single();
@@ -877,58 +915,82 @@ export const limitsService = {
     if (error) throw error;
     if (!data) throw new Error('PROFILE_NOT_FOUND');
 
-    let {
-      voice_daily_limit_seconds,
-      voice_used_today_seconds,
-      voice_balance_upsell,
-      last_voice_usage_date,
-    } = data as any;
+    const now = new Date();
+    const isVip =
+      data.subscription_status === 'PREMIUM_UNLIMITED' &&
+      data.subscription_expiry &&
+      new Date(data.subscription_expiry) > now;
 
-    // Reset diário se mudou o dia
-    if (!last_voice_usage_date || last_voice_usage_date.split('T')[0] !== today) {
-      voice_used_today_seconds = 0;
-      last_voice_usage_date = today;
+    // Verificar se boost expirou
+    let boostMinutes = data.boost_minutes_balance || 0;
+    if (data.boost_expiry && new Date(data.boost_expiry) < now) {
+      boostMinutes = 0;
     }
 
-    let remainingDaily = Math.max(
-      0,
-      (voice_daily_limit_seconds as number) - (voice_used_today_seconds as number)
-    );
-    let remainingUpsell = voice_balance_upsell as number;
-
-    let toConsume = seconds;
-
-    // Consome do diário
-    const consumeFromDaily = Math.min(remainingDaily, toConsume);
-    remainingDaily -= consumeFromDaily;
-    voice_used_today_seconds += consumeFromDaily;
-    toConsume -= consumeFromDaily;
-
-    // Se ainda falta, consome do upsell
-    const consumeFromUpsell = Math.min(remainingUpsell, toConsume);
-    remainingUpsell -= consumeFromUpsell;
-    toConsume -= consumeFromUpsell;
-
-    // Se ainda falta, acabou tudo
-    if (toConsume > 0) {
-      throw new Error('VOICE_LIMIT_REACHED');
-    }
-
-    const { error: updateError } = await supabase
-      .from('user_profiles')
-      .update({
-        voice_used_today_seconds,
-        voice_balance_upsell: remainingUpsell,
-        last_voice_usage_date: today,
-      })
-      .eq('user_id', userId);
-
-    if (updateError) throw updateError;
+    const freeMinutes = data.daily_free_minutes || 0;
+    const reserveMinutes = data.reserve_bank_balance || 0;
 
     return {
-      remainingDailySeconds: remainingDaily,
-      remainingUpsellSeconds: remainingUpsell,
+      isVip,
+      freeMinutes,
+      boostMinutes,
+      reserveMinutes,
+      totalMinutes: freeMinutes + boostMinutes + reserveMinutes,
+      totalSeconds: (freeMinutes + boostMinutes + reserveMinutes) * 60,
+      boostExpiry: data.boost_expiry,
+      subscriptionExpiry: data.subscription_expiry,
     };
+  },
+
+  /**
+   * Adiciona minutos de Boost (Ajuda Rápida - R$ 5,00)
+   */
+  async addBoostMinutes(userId: string, minutes: number = 20) {
+    const { data, error } = await supabase.rpc('add_boost_minutes', {
+      p_user_id: userId,
+      p_minutes: minutes,
+    });
+
+    if (error) throw error;
+    if (!data || !data.success) {
+      throw new Error(data?.error || 'Erro ao adicionar boost');
+    }
+
+    return { success: true };
+  },
+
+  /**
+   * Adiciona minutos de Reserva (R$ 12,90)
+   */
+  async addReserveMinutes(userId: string, minutes: number = 100) {
+    const { data, error } = await supabase.rpc('add_reserve_minutes', {
+      p_user_id: userId,
+      p_minutes: minutes,
+    });
+
+    if (error) throw error;
+    if (!data || !data.success) {
+      throw new Error(data?.error || 'Erro ao adicionar reserva');
+    }
+
+    return { success: true };
+  },
+
+  /**
+   * Ativa assinatura ilimitada (R$ 19,90)
+   */
+  async activateUnlimitedSubscription(userId: string, days: number = 30) {
+    const { data, error } = await supabase.rpc('activate_unlimited_subscription', {
+      p_user_id: userId,
+      p_days: days,
+    });
+
+    if (error) throw error;
+    if (!data || !data.success) {
+      throw new Error(data?.error || 'Erro ao ativar assinatura');
+    }
+
+    return { success: true };
   },
 
   /**
