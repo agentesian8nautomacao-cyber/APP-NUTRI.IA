@@ -18,6 +18,22 @@ export default defineConfig(({ mode }) => {
         alias: {
           '@': path.resolve(__dirname, '.'),
         }
+      },
+      build: {
+        rollupOptions: {
+          output: {
+            manualChunks: {
+              'supabase': ['@supabase/supabase-js'],
+            }
+          }
+        },
+        commonjsOptions: {
+          include: [/node_modules/],
+          transformMixedEsModules: true
+        }
+      },
+      optimizeDeps: {
+        include: ['@supabase/supabase-js']
       }
     };
 });
