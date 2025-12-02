@@ -30,6 +30,10 @@ export default defineConfig(({ mode }) => {
             ) {
               return true;
             }
+            // Excluir arquivos de teste do build
+            if (id.includes('test-') || id.includes('.test.') || id.includes('.spec.')) {
+              return true;
+            }
             return false;
           },
           output: {
@@ -38,8 +42,14 @@ export default defineConfig(({ mode }) => {
             }
           },
           onwarn(warning, warn) {
-            // Suprimir warnings sobre módulos externos
-            if (warning.code === 'UNRESOLVED_IMPORT' || warning.code === 'EXTERNAL') {
+            // Suprimir warnings sobre módulos externos e arquivos de teste
+            if (
+              warning.code === 'UNRESOLVED_IMPORT' || 
+              warning.code === 'EXTERNAL' ||
+              warning.id?.includes('test-') ||
+              warning.id?.includes('.test.') ||
+              warning.id?.includes('.spec.')
+            ) {
               return;
             }
             warn(warning);

@@ -1,0 +1,24 @@
+# Arquivos de teste
+test-*.ts
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+
+# Arquivos de desenvolvimento
+.vscode/
+.idea/
+*.log
+.env.local
+.env.development
+
+# Documentação
+*.md
+!README.md
+
+# SQL scripts (não precisam estar no build)
+*.sql
+
+# Edge Functions (já são deployados separadamente)
+supabase/functions/
+
