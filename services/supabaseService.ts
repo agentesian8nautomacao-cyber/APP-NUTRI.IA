@@ -1067,11 +1067,13 @@ export const limitsService = {
     // Delete profile
     await supabase.from('user_profiles').delete().eq('user_id', userId).catch(() => {});
 
-    // Delete auth user (necessita chave de serviço / edge function em produção,
-    // aqui usamos signOut + instrução para app chamar endpoint seguro)
-    const { error: authError } = await supabase.auth.admin.deleteUser(userId);
-    if (authError) {
-      console.error('Erro ao deletar usuário auth:', authError);
+    // Delete auth user (necessita chave de serviço / edge function em produção)
+    // No frontend, apenas fazemos signOut. A deleção real deve ser feita via Edge Function
+    // com service_role_key por questões de segurança
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error('Erro ao fazer signOut:', error);
     }
   },
 };

@@ -21,10 +21,28 @@ export default defineConfig(({ mode }) => {
       },
       build: {
         rollupOptions: {
+          external: (id) => {
+            // Externalizar módulos Node.js que não devem estar no bundle
+            if (
+              id.startsWith('node:') ||
+              ['path', 'fs', 'os', 'crypto', 'util', 'stream', 'events', 'buffer', 'url', 'http', 'https', 'net', 'tls', 'zlib', 'querystring'].includes(id) ||
+              id.includes('node_modules') && (id.includes('@supabase/functions') || id.includes('edge-runtime'))
+            ) {
+              return true;
+            }
+            return false;
+          },
           output: {
             manualChunks: {
               'supabase': ['@supabase/supabase-js'],
             }
+          },
+          onwarn(warning, warn) {
+            // Suprimir warnings sobre módulos externos
+            if (warning.code === 'UNRESOLVED_IMPORT' || warning.code === 'EXTERNAL') {
+              return;
+            }
+            warn(warning);
           }
         },
         commonjsOptions: {
