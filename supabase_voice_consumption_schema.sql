@@ -56,9 +56,14 @@ BEGIN
             ADD CONSTRAINT user_profiles_subscription_status_check 
             CHECK (subscription_status IN ('FREE', 'PREMIUM_UNLIMITED', 'active', 'inactive', 'expired'));
         ELSE
-            -- Se já é TEXT, apenas atualizar constraint
+            -- Se já é TEXT, atualizar constraint e valor padrão
             ALTER TABLE user_profiles 
             DROP CONSTRAINT IF EXISTS user_profiles_subscription_status_check;
+            
+            -- Corrigir valor padrão se estiver usando cast do ENUM antigo
+            ALTER TABLE user_profiles 
+            ALTER COLUMN subscription_status 
+            SET DEFAULT 'FREE';
             
             ALTER TABLE user_profiles 
             ADD CONSTRAINT user_profiles_subscription_status_check 
