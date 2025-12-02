@@ -29,23 +29,7 @@ CREATE TABLE IF NOT EXISTS gym_student_links (
     student_user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(gym_user_id, student_user_id),
-    -- Garantir que gym_user_id é USER_PERSONAL
-    CONSTRAINT check_gym_is_personal CHECK (
-        EXISTS (
-            SELECT 1 FROM user_profiles 
-            WHERE user_id = gym_user_id 
-            AND account_type = 'USER_PERSONAL'
-        )
-    ),
-    -- Garantir que student_user_id é USER_GYM
-    CONSTRAINT check_student_is_gym CHECK (
-        EXISTS (
-            SELECT 1 FROM user_profiles 
-            WHERE user_id = student_user_id 
-            AND account_type = 'USER_GYM'
-        )
-    )
+    UNIQUE(gym_user_id, student_user_id)
 );
 
 -- ============================================
@@ -274,6 +258,47 @@ CREATE TRIGGER update_gym_student_links_updated_at
 BEFORE UPDATE ON gym_student_links
 FOR EACH ROW 
 EXECUTE FUNCTION update_updated_at_column();
+
+-- ============================================
+-- FUNÇÃO: Validar Vínculo Academia-Aluno
+-- ============================================
+-- Valida que gym_user_id é USER_PERSONAL e student_user_id é USER_GYM
+-- Esta validação será feita na função link_student_to_gym, não como constraint
+
+-- Trigger para validar antes de inserir/atualizar
+CREATE OR REPLACE FUNCTION validate_gym_student_link()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_gym_type account_type;
+    v_student_type account_type;
+BEGIN
+    -- Verificar se gym_user_id é USER_PERSONAL
+    SELECT account_type INTO v_gym_type
+    FROM user_profiles
+    WHERE user_id = NEW.gym_user_id;
+    
+    IF v_gym_type IS NULL OR v_gym_type != 'USER_PERSONAL' THEN
+        RAISE EXCEPTION 'gym_user_id deve ser uma conta USER_PERSONAL. Tipo encontrado: %', COALESCE(v_gym_type::text, 'NULL');
+    END IF;
+    
+    -- Verificar se student_user_id é USER_GYM
+    SELECT account_type INTO v_student_type
+    FROM user_profiles
+    WHERE user_id = NEW.student_user_id;
+    
+    IF v_student_type IS NULL OR v_student_type != 'USER_GYM' THEN
+        RAISE EXCEPTION 'student_user_id deve ser uma conta USER_GYM. Tipo encontrado: %', COALESCE(v_student_type::text, 'NULL');
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Aplicar trigger
+CREATE TRIGGER validate_gym_student_link_trigger
+BEFORE INSERT OR UPDATE ON gym_student_links
+FOR EACH ROW
+EXECUTE FUNCTION validate_gym_student_link();
 
 -- ============================================
 -- COMENTÁRIOS
