@@ -17,8 +17,11 @@ ADD COLUMN IF NOT EXISTS boost_expiry TIMESTAMPTZ, -- Data/hora de expiração d
 ADD COLUMN IF NOT EXISTS subscription_expiry TIMESTAMPTZ; -- Data/hora de expiração do plano ilimitado
 
 -- Atualizar subscription_status para incluir 'PREMIUM_UNLIMITED'
--- Se já existir um ENUM, precisamos recriar
+-- Verificar se é ENUM ou TEXT e converter se necessário
 DO $$ 
+DECLARE
+    v_data_type TEXT;
+    v_enum_name TEXT;
 BEGIN
     -- Verificar se subscription_status já existe como coluna
     IF NOT EXISTS (
@@ -26,17 +29,41 @@ BEGIN
         WHERE table_name = 'user_profiles' 
         AND column_name = 'subscription_status'
     ) THEN
+        -- Se não existe, criar como TEXT
         ALTER TABLE user_profiles 
         ADD COLUMN subscription_status TEXT DEFAULT 'FREE' 
-        CHECK (subscription_status IN ('FREE', 'PREMIUM_UNLIMITED'));
-    ELSE
-        -- Se já existe, atualizar constraint para incluir PREMIUM_UNLIMITED
-        ALTER TABLE user_profiles 
-        DROP CONSTRAINT IF EXISTS user_profiles_subscription_status_check;
-        
-        ALTER TABLE user_profiles 
-        ADD CONSTRAINT user_profiles_subscription_status_check 
         CHECK (subscription_status IN ('FREE', 'PREMIUM_UNLIMITED', 'active', 'inactive', 'expired'));
+    ELSE
+        -- Se já existe, verificar o tipo
+        SELECT data_type, udt_name INTO v_data_type, v_enum_name
+        FROM information_schema.columns
+        WHERE table_name = 'user_profiles' 
+        AND column_name = 'subscription_status';
+        
+        -- Se for ENUM, converter para TEXT
+        IF v_data_type = 'USER-DEFINED' AND v_enum_name IS NOT NULL THEN
+            -- Converter ENUM para TEXT
+            ALTER TABLE user_profiles 
+            ALTER COLUMN subscription_status TYPE TEXT 
+            USING subscription_status::TEXT;
+            
+            -- Remover constraint antiga se existir
+            ALTER TABLE user_profiles 
+            DROP CONSTRAINT IF EXISTS user_profiles_subscription_status_check;
+            
+            -- Adicionar nova constraint
+            ALTER TABLE user_profiles 
+            ADD CONSTRAINT user_profiles_subscription_status_check 
+            CHECK (subscription_status IN ('FREE', 'PREMIUM_UNLIMITED', 'active', 'inactive', 'expired'));
+        ELSE
+            -- Se já é TEXT, apenas atualizar constraint
+            ALTER TABLE user_profiles 
+            DROP CONSTRAINT IF EXISTS user_profiles_subscription_status_check;
+            
+            ALTER TABLE user_profiles 
+            ADD CONSTRAINT user_profiles_subscription_status_check 
+            CHECK (subscription_status IN ('FREE', 'PREMIUM_UNLIMITED', 'active', 'inactive', 'expired'));
+        END IF;
     END IF;
 END $$;
 
