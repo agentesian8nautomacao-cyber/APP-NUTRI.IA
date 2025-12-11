@@ -34,16 +34,18 @@ export default defineConfig(({ mode }) => {
                 if (id.includes('recharts')) {
                   return 'vendor-charts';
                 }
-                if (id.includes('lucide-react')) {
-                  return 'vendor-icons';
-                }
+                // lucide-react será incluído no vendor principal para evitar problemas de tree-shaking
                 // Outras dependências
                 return 'vendor';
               }
             },
           },
+          external: [],
         },
         chunkSizeWarningLimit: 1000, // Aumentar limite para 1MB
+        commonjsOptions: {
+          include: [/lucide-react/, /node_modules/],
+        },
       },
     };
 });
