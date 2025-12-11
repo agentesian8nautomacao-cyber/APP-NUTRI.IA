@@ -23,19 +23,17 @@ export default defineConfig(({ mode }) => {
         rollupOptions: {
           output: {
             manualChunks(id) {
-              // Separar node_modules em chunks próprios
+              // Não separar React em chunk separado para evitar problemas
+              // Incluir React no bundle principal
               if (id.includes('node_modules')) {
-                if (id.includes('react') || id.includes('react-dom')) {
-                  return 'vendor-react';
-                }
                 if (id.includes('@google/genai')) {
                   return 'vendor-google';
                 }
                 if (id.includes('recharts')) {
                   return 'vendor-charts';
                 }
-                // lucide-react será incluído no vendor principal para evitar problemas de tree-shaking
-                // Outras dependências
+                // Incluir React e outras dependências no vendor principal
+                // para evitar problemas de inicialização
                 return 'vendor';
               }
             },
@@ -46,6 +44,8 @@ export default defineConfig(({ mode }) => {
         commonjsOptions: {
           include: [/lucide-react/, /node_modules/],
         },
+        minify: 'esbuild',
+        target: 'es2022',
       },
     };
 });

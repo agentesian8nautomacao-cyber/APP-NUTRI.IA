@@ -1,14 +1,17 @@
 
-export enum ActivityLevel {
-  Sedentary = "Sedentary",
-  Light = "Light",
-  Moderate = "Moderate",
-  Active = "Active",
-  VeryActive = "Very Active"
-}
+// Export enum as const object to avoid tree-shaking issues in production
+export const ActivityLevel = {
+  Sedentary: "Sedentary",
+  Light: "Light",
+  Moderate: "Moderate",
+  Active: "Active",
+  VeryActive: "Very Active"
+} as const;
+
+export type ActivityLevel = typeof ActivityLevel[keyof typeof ActivityLevel];
 
 // Explicit arrays for production builds to avoid Object.values() issues
-export const ActivityLevelValues: ActivityLevel[] = [
+export const ActivityLevelValues: readonly string[] = [
   ActivityLevel.Sedentary,
   ActivityLevel.Light,
   ActivityLevel.Moderate,
@@ -16,29 +19,35 @@ export const ActivityLevelValues: ActivityLevel[] = [
   ActivityLevel.VeryActive
 ];
 
-export enum Goal {
-  LoseWeight = "Lose Weight",
-  Maintain = "Maintain Weight",
-  GainMuscle = "Gain Muscle",
-  ImproveHealth = "General Health"
-}
+// Export enum as const object to avoid tree-shaking issues in production
+export const Goal = {
+  LoseWeight: "Lose Weight",
+  Maintain: "Maintain Weight",
+  GainMuscle: "Gain Muscle",
+  ImproveHealth: "General Health"
+} as const;
+
+export type Goal = typeof Goal[keyof typeof Goal];
 
 // Explicit arrays for production builds to avoid Object.values() issues
-export const GoalValues: Goal[] = [
+export const GoalValues: readonly string[] = [
   Goal.LoseWeight,
   Goal.Maintain,
   Goal.GainMuscle,
   Goal.ImproveHealth
 ];
 
-export enum Gender {
-  Male = "Male",
-  Female = "Female",
-  Other = "Other"
-}
+// Export enum as const object to avoid tree-shaking issues in production
+export const Gender = {
+  Male: "Male",
+  Female: "Female",
+  Other: "Other"
+} as const;
+
+export type Gender = typeof Gender[keyof typeof Gender];
 
 // Explicit arrays for production builds to avoid Object.values() issues
-export const GenderValues: Gender[] = [
+export const GenderValues: readonly string[] = [
   Gender.Male,
   Gender.Female,
   Gender.Other
