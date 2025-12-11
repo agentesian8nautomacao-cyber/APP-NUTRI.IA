@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { ArrowLeft, Ticket, ChevronRight, ChefHat, Check, Star } from 'lucide-react';
+import { ArrowLeft, Ticket, ChevronRight, ChefHat } from 'lucide-react';
 
 interface LandingPageProps {
   onGetStarted: () => void;
@@ -81,12 +81,12 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDe
                     style={{
                         backgroundImage: `url('/Image 2025-12-10 at 19.43.07.jpeg')`,
                         filter: 'blur(0px)',
-                        opacity: 0.85,
+                        opacity: 0.95,
                         transform: 'scale(1.1)'
                     }}
                 />
                 {/* Overlay for better text contrast */}
-                <div className="absolute inset-0 bg-white/40" />
+                <div className="absolute inset-0 bg-white/15" />
             </div>
         )}
 
@@ -138,40 +138,14 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDe
                     {/* The -mt-16 helps optical centering by pulling it up slightly against the bottom slider */}
                     {/* pb-40 adds more bottom padding to prevent slider overlap with badges */}
                     
-                    <div className="max-w-lg w-full animate-in zoom-in duration-1000 relative z-30">
-                        {/* Glassmorphism Card */}
-                         <div className="bg-white/20 backdrop-blur-md p-10 md:p-12 rounded-[3.5rem] border border-white/40 shadow-2xl ring-1 ring-white/30 relative overflow-visible transition-all duration-500 hover:shadow-3xl hover:bg-white/25">
-                             
-                             {/* Subtle inner highlight */}
-                             <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-white/40 to-transparent pointer-events-none rounded-[3.5rem]"></div>
-
-                             <div className="relative z-10 text-center">
-                                <h1 className="font-serif text-6xl md:text-8xl font-bold tracking-tight mb-8 text-[#1A4D2E] leading-[1.05] drop-shadow-2xl">
-                                    Nutrição <br/>
-                                    <span className="text-[#1A4D2E] italic font-serif">Consciente.</span>
-                                </h1>
-                                <p className="text-[#1A4D2E] font-semibold text-xl md:text-2xl leading-relaxed mb-10 max-w-md mx-auto drop-shadow-lg">
-                                    Planos alimentares personalizados e chefs IA para sua melhor versão.
-                                </p>
-
-                                {/* Trust Badges */}
-                                <div className="flex justify-center gap-4 relative z-20">
-                                    <div className="flex items-center gap-2 bg-[#1A4D2E]/20 backdrop-blur-md px-5 py-3 rounded-full border-2 border-[#1A4D2E]/30 relative z-20 shadow-lg">
-                                        <Check size={16} className="text-[#1A4D2E]"/>
-                                        <span className="text-xs font-bold text-[#1A4D2E] uppercase tracking-wide">Saudável</span>
-                                    </div>
-                                    <div className="flex items-center gap-2 bg-[#1A4D2E]/20 backdrop-blur-md px-5 py-3 rounded-full border-2 border-[#1A4D2E]/30 relative z-20 shadow-lg">
-                                        <Star size={16} className="text-[#1A4D2E] fill-[#1A4D2E]"/>
-                                        <span className="text-xs font-bold text-[#1A4D2E] uppercase tracking-wide">Premium</span>
-                                    </div>
-                                </div>
-                                
-                                {/* Shimmer Effect - Below Badges */}
-                                <div className="absolute top-full left-1/2 -translate-x-1/2 w-64 h-1 mt-4 overflow-hidden">
-                                    <div className="absolute top-0 -left-full w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-12 animate-[shimmer_3s_infinite]"></div>
-                                </div>
-                             </div>
-                        </div>
+                    <div className="max-w-lg w-full animate-in zoom-in duration-1000 relative z-30 text-center">
+                        <h1 className="font-serif text-6xl md:text-8xl font-bold tracking-tight mb-8 text-[#1A4D2E] leading-[1.05] drop-shadow-2xl">
+                            Nutrição <br/>
+                            <span className="text-[#1A4D2E] italic font-serif">Consciente.</span>
+                        </h1>
+                        <p className="text-[#1A4D2E] font-semibold text-xl md:text-2xl leading-relaxed mb-10 max-w-md mx-auto drop-shadow-lg">
+                            Planos alimentares personalizados e chefs IA para sua melhor versão.
+                        </p>
                     </div>
                 </div>
             )}
