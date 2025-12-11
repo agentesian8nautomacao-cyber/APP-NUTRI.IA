@@ -85,8 +85,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDe
                         transform: 'scale(1.1)'
                     }}
                 />
-                {/* Very light overlay only for minimal text contrast */}
-                <div className="absolute inset-0 bg-white/25" />
+                {/* Overlay for better text contrast */}
+                <div className="absolute inset-0 bg-white/40" />
             </div>
         )}
 
@@ -119,14 +119,14 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDe
             
             {/* Header */}
             <div className="pt-6 flex justify-between items-center z-40">
-                 <div className="flex items-center gap-2">
-                     <div className="w-10 h-10 bg-[#1A4D2E] rounded-full flex items-center justify-center text-[#F5F1E8] shadow-md">
-                        <span className="text-xl">🥗</span>
+                 <div className="flex items-center gap-3">
+                     <div className="w-12 h-12 bg-[#1A4D2E] rounded-full flex items-center justify-center text-[#F5F1E8] shadow-lg">
+                        <span className="text-2xl">🥗</span>
                      </div>
-                     <span className="font-serif text-2xl font-bold text-[#1A4D2E]">Nutri.ai</span>
+                     <span className="font-serif text-4xl font-bold text-[#1A4D2E] drop-shadow-lg">Nutri.ai</span>
                  </div>
                  {screen === 'home' && (
-                     <button onClick={() => setScreen('login')} className="text-sm font-bold text-[#1A4D2E] underline decoration-2 underline-offset-4">
+                     <button onClick={() => setScreen('login')} className="text-base font-bold text-[#1A4D2E] underline decoration-2 underline-offset-4 hover:text-[#4F6F52] transition-colors drop-shadow-sm">
                          Entrar
                      </button>
                  )}
@@ -146,23 +146,23 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDe
                              <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-white/40 to-transparent pointer-events-none rounded-[3.5rem]"></div>
 
                              <div className="relative z-10 text-center">
-                                <h1 className="font-serif text-5xl md:text-7xl font-medium tracking-tight mb-6 text-[#1A1A1A] leading-[1.05]">
+                                <h1 className="font-serif text-6xl md:text-8xl font-bold tracking-tight mb-8 text-[#1A4D2E] leading-[1.05] drop-shadow-2xl">
                                     Nutrição <br/>
                                     <span className="text-[#1A4D2E] italic font-serif">Consciente.</span>
                                 </h1>
-                                <p className="text-[#4F6F52] font-medium text-lg leading-relaxed mb-8 max-w-xs mx-auto">
+                                <p className="text-[#1A4D2E] font-semibold text-xl md:text-2xl leading-relaxed mb-10 max-w-md mx-auto drop-shadow-lg">
                                     Planos alimentares personalizados e chefs IA para sua melhor versão.
                                 </p>
 
                                 {/* Trust Badges */}
                                 <div className="flex justify-center gap-4 relative z-20">
-                                    <div className="flex items-center gap-1 bg-[#1A4D2E]/10 px-4 py-2 rounded-full backdrop-blur-md border border-[#1A4D2E]/5 relative z-20">
-                                        <Check size={14} className="text-[#1A4D2E]"/>
-                                        <span className="text-[10px] font-bold text-[#1A4D2E] uppercase">Saudável</span>
+                                    <div className="flex items-center gap-2 bg-[#1A4D2E]/20 backdrop-blur-md px-5 py-3 rounded-full border-2 border-[#1A4D2E]/30 relative z-20 shadow-lg">
+                                        <Check size={16} className="text-[#1A4D2E]"/>
+                                        <span className="text-xs font-bold text-[#1A4D2E] uppercase tracking-wide">Saudável</span>
                                     </div>
-                                    <div className="flex items-center gap-1 bg-[#1A4D2E]/10 px-4 py-2 rounded-full backdrop-blur-md border border-[#1A4D2E]/5 relative z-20">
-                                        <Star size={14} className="text-[#1A4D2E] fill-[#1A4D2E]"/>
-                                        <span className="text-[10px] font-bold text-[#1A4D2E] uppercase">Premium</span>
+                                    <div className="flex items-center gap-2 bg-[#1A4D2E]/20 backdrop-blur-md px-5 py-3 rounded-full border-2 border-[#1A4D2E]/30 relative z-20 shadow-lg">
+                                        <Star size={16} className="text-[#1A4D2E] fill-[#1A4D2E]"/>
+                                        <span className="text-xs font-bold text-[#1A4D2E] uppercase tracking-wide">Premium</span>
                                     </div>
                                 </div>
                                 
@@ -283,11 +283,11 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDe
                             className="absolute inset-0 flex items-center justify-center pointer-events-none transition-opacity duration-300"
                             style={{ opacity: textOpacity, paddingLeft: '60px' }}
                          >
-                             <span className="text-[#F5F1E8] font-light text-sm tracking-[0.2em] opacity-80 whitespace-nowrap animate-pulse">
+                             <span className="text-[#F5F1E8] font-semibold text-base tracking-[0.2em] opacity-95 whitespace-nowrap animate-pulse drop-shadow-lg">
                                  DESLIZE PARA ENTRAR
                              </span>
-                             <div className="absolute right-6 opacity-60">
-                                 <ChevronRight size={20} className="text-[#F5F1E8]" />
+                             <div className="absolute right-6 opacity-80">
+                                 <ChevronRight size={24} className="text-[#F5F1E8] drop-shadow-lg" />
                              </div>
                          </div>
 
@@ -312,7 +312,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDe
                     <div className="text-center mt-6">
                          <button 
                             onClick={() => setScreen('coupon')}
-                            className="text-[10px] font-bold text-[#4F6F52] uppercase tracking-widest hover:text-[#1A4D2E] transition-colors border-b border-transparent hover:border-[#1A4D2E]"
+                            className="text-xs font-bold text-[#1A4D2E] uppercase tracking-widest hover:text-[#4F6F52] transition-colors border-b-2 border-transparent hover:border-[#1A4D2E] drop-shadow-sm"
                          >
                              Tenho um convite
                          </button>
