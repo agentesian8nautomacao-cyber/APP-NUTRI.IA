@@ -7,6 +7,15 @@ export enum ActivityLevel {
   VeryActive = "Very Active"
 }
 
+// Explicit arrays for production builds to avoid Object.values() issues
+export const ActivityLevelValues: ActivityLevel[] = [
+  ActivityLevel.Sedentary,
+  ActivityLevel.Light,
+  ActivityLevel.Moderate,
+  ActivityLevel.Active,
+  ActivityLevel.VeryActive
+];
+
 export enum Goal {
   LoseWeight = "Lose Weight",
   Maintain = "Maintain Weight",
@@ -14,11 +23,26 @@ export enum Goal {
   ImproveHealth = "General Health"
 }
 
+// Explicit arrays for production builds to avoid Object.values() issues
+export const GoalValues: Goal[] = [
+  Goal.LoseWeight,
+  Goal.Maintain,
+  Goal.GainMuscle,
+  Goal.ImproveHealth
+];
+
 export enum Gender {
   Male = "Male",
   Female = "Female",
   Other = "Other"
 }
+
+// Explicit arrays for production builds to avoid Object.values() issues
+export const GenderValues: Gender[] = [
+  Gender.Male,
+  Gender.Female,
+  Gender.Other
+];
 
 export interface PantryItem {
   id: string;
