@@ -175,12 +175,15 @@ const App: React.FC = () => {
     setView('generating');
     setIsGenerating(true);
     try {
+        console.log("Iniciando geração de plano para perfil:", profile.name);
         const plan = await generateDietPlan(profile);
+        console.log("Plano gerado com sucesso:", plan);
         setDietPlan(plan);
         setView('diet_plan'); // Redirect directly to Diet Plan view
-    } catch (error) {
+    } catch (error: any) {
         console.error("Failed to generate plan", error);
-        alert("Ocorreu um erro ao gerar seu plano. Tente novamente.");
+        const errorMessage = error?.message || "Ocorreu um erro ao gerar seu plano.";
+        alert(`Erro: ${errorMessage}\n\nVerifique:\n- Se a chave API está configurada\n- Se há conexão com a internet\n- Tente novamente em alguns instantes.`);
         setView('onboarding');
     } finally {
         setIsGenerating(false);

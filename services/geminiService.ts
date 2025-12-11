@@ -44,7 +44,14 @@ export const generateDietPlan = async (
     attachment?: { data: string, mimeType: string },
     usePantry: boolean = true
 ): Promise<DailyPlan> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+  
+  if (!apiKey) {
+    console.error("API Key não encontrada. Verifique as variáveis de ambiente.");
+    throw new Error("Chave API do Gemini não configurada. Verifique as variáveis de ambiente.");
+  }
+  
+  const ai = new GoogleGenAI({ apiKey });
 
   const schema = {
     type: Type.OBJECT,
@@ -163,22 +170,50 @@ export const generateDietPlan = async (
       parts.unshift({ inlineData: { mimeType: attachment.mimeType, data: attachment.data } });
   }
 
-  // Use gemini-3-pro-preview for the main diet plan generation as it is a complex reasoning task.
+  // Use gemini-1.5-pro for the main diet plan generation as it is a complex reasoning task.
   // We use responseSchema to ensure the output is parseable JSON.
   return callWithRetry(async () => {
-      const response = await ai.models.generateContent({
-        model: "gemini-3-pro-preview",
-        contents: { parts: parts },
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: schema,
-          temperature: attachment ? 0.2 : 0.7, 
-        }
-      });
+      try {
+        console.log("Gerando plano alimentar...", { 
+          hasApiKey: !!apiKey, 
+          profileAge: profile.age,
+          model: "gemini-1.5-pro"
+        });
+        
+        const response = await ai.models.generateContent({
+          model: "gemini-1.5-pro",
+          contents: { parts: parts },
+          config: {
+            responseMimeType: "application/json",
+            responseSchema: schema,
+            temperature: attachment ? 0.2 : 0.7, 
+          }
+        });
 
-      const text = response.text;
-      if (!text) throw new Error("No response from AI");
-      return JSON.parse(text) as DailyPlan;
+        const text = response.text;
+        if (!text) {
+          console.error("Resposta vazia da API");
+          throw new Error("A API não retornou uma resposta válida");
+        }
+        
+        console.log("Resposta recebida, fazendo parse...");
+        const parsed = JSON.parse(text) as DailyPlan;
+        console.log("Plano gerado com sucesso!", { 
+          totalCalories: parsed.totalCalories,
+          mealsCount: parsed.meals.length 
+        });
+        
+        return parsed;
+      } catch (error: any) {
+        console.error("Erro ao gerar plano:", error);
+        if (error.message?.includes("API_KEY")) {
+          throw new Error("Chave API inválida ou não configurada");
+        }
+        if (error.message?.includes("quota") || error.message?.includes("limit")) {
+          throw new Error("Limite de requisições da API excedido. Tente novamente mais tarde.");
+        }
+        throw error;
+      }
   });
 };
 
