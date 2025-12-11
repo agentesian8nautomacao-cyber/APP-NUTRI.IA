@@ -1,4 +1,4 @@
-import { fileURLToPath, URL } from 'node:url';
+import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -16,52 +16,34 @@ export default defineConfig(({ mode }) => {
       },
       resolve: {
         alias: {
-          '@': fileURLToPath(new URL('.', import.meta.url)),
+          '@': path.resolve(__dirname, '.'),
         }
       },
       build: {
         rollupOptions: {
-          external: (id) => {
-            // Externalizar módulos Node.js que não devem estar no bundle
-            if (
-              id.startsWith('node:') ||
-              ['path', 'fs', 'os', 'crypto', 'util', 'stream', 'events', 'buffer', 'url', 'http', 'https', 'net', 'tls', 'zlib', 'querystring'].includes(id) ||
-              id.includes('node_modules') && (id.includes('@supabase/functions') || id.includes('edge-runtime'))
-            ) {
-              return true;
-            }
-            // Excluir arquivos de teste do build
-            if (id.includes('test-') || id.includes('.test.') || id.includes('.spec.')) {
-              return true;
-            }
-            return false;
-          },
           output: {
-            manualChunks: {
-              'supabase': ['@supabase/supabase-js'],
-            }
+            manualChunks(id) {
+              // Separar node_modules em chunks próprios
+              if (id.includes('node_modules')) {
+                if (id.includes('react') || id.includes('react-dom')) {
+                  return 'vendor-react';
+                }
+                if (id.includes('@google/genai')) {
+                  return 'vendor-google';
+                }
+                if (id.includes('recharts')) {
+                  return 'vendor-charts';
+                }
+                if (id.includes('lucide-react')) {
+                  return 'vendor-icons';
+                }
+                // Outras dependências
+                return 'vendor';
+              }
+            },
           },
-          onwarn(warning, warn) {
-            // Suprimir warnings sobre módulos externos e arquivos de teste
-            if (
-              warning.code === 'UNRESOLVED_IMPORT' || 
-              warning.code === 'EXTERNAL' ||
-              warning.id?.includes('test-') ||
-              warning.id?.includes('.test.') ||
-              warning.id?.includes('.spec.')
-            ) {
-              return;
-            }
-            warn(warning);
-          }
         },
-        commonjsOptions: {
-          include: [/node_modules/],
-          transformMixedEsModules: true
-        }
+        chunkSizeWarningLimit: 1000, // Aumentar limite para 1MB
       },
-      optimizeDeps: {
-        include: ['@supabase/supabase-js']
-      }
     };
 });

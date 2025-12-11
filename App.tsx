@@ -1,9 +1,9 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { UserProfile, DailyPlan, LogItem, MealItem, WellnessState, AppView, ScanHistoryItem, Gender, ActivityLevel, Goal } from './types';
 import { generateDietPlan } from './services/geminiService';
 
-// Components
+// Components - Lazy load heavy components
 import LandingPage from './components/LandingPage';
 import Onboarding from './components/Onboarding';
 import Sidebar from './components/Sidebar';
@@ -12,15 +12,24 @@ import DietPlanView from './components/DietPlanView';
 import DiaryView from './components/DiaryView';
 import SmartMeal from './components/SmartMeal';
 import PlateAnalyzer from './components/PlateAnalyzer';
-import ProgressView from './components/ProgressView';
 import WellnessPlan from './components/WellnessPlan';
 import ChallengesView from './components/ChallengesView';
 import Library from './components/Library';
 import ChatAssistant from './components/ChatAssistant';
-import LiveConversation from './components/LiveConversation';
 import ProfileView from './components/ProfileView';
 import SettingsView from './components/SettingsView';
 import PersonalChat from './components/PersonalChat';
+
+// Lazy load components with heavy dependencies
+const ProgressView = lazy(() => import('./components/ProgressView'));
+const LiveConversation = lazy(() => import('./components/LiveConversation'));
+
+// Loading fallback component
+const LoadingFallback = () => (
+  <div className="flex items-center justify-center h-full min-h-screen">
+    <div className="text-[#1A4D2E] text-lg">Carregando...</div>
+  </div>
+);
 
 import { MessageCircle, Camera, Home, Menu, BookOpen, Phone, User } from 'lucide-react';
 
@@ -125,9 +134,6 @@ const App: React.FC = () => {
   const [dailyLog, setDailyLog] = useState<LogItem[]>([]);
   const [scanHistory, setScanHistory] = useState<ScanHistoryItem[]>([]);
   
-  // Pending Chat Message (Auto-send when opening chat)
-  const [pendingChatMessage, setPendingChatMessage] = useState<string | null>(null);
-
   const [wellness, setWellness] = useState<WellnessState>({
     mood: null,
     waterGlasses: 0,
@@ -219,10 +225,6 @@ const App: React.FC = () => {
       setDailyLog(prev => [...prev, newItem]);
   };
 
-  const handleRemoveFood = (id: string) => {
-      setDailyLog(prev => prev.filter(item => item.id !== id));
-  };
-
   const handleScanComplete = (item: MealItem, scannedImage: string) => {
       // Add to history
       const historyItem: ScanHistoryItem = {
@@ -245,11 +247,6 @@ const App: React.FC = () => {
       
       setDailyLog(prev => [...prev, newItem]);
       setIsScannerOpen(false);
-  };
-
-  const handleShareToPersonal = (message: string) => {
-      setPendingChatMessage(message);
-      setView('personal_chat');
   };
 
   const handleUpdateProfile = (updatedProfile: UserProfile) => {
@@ -392,8 +389,6 @@ const App: React.FC = () => {
                     wellness={wellness}
                     setWellness={setWellness}
                     onAddFood={handleAddFood}
-                    onRemoveFood={handleRemoveFood}
-                    onShareToPersonal={handleShareToPersonal}
                     onAnalyze={() => setIsScannerOpen(true)}
                     onChat={() => setIsChatOpen(true)}
                     onNavigate={setView}
@@ -407,15 +402,7 @@ const App: React.FC = () => {
                     onRegenerate={handleRegeneratePlan}
                 />
             )}
-            {view === 'diary' && dietPlan && (
-                <DiaryView 
-                    plan={dietPlan} 
-                    dailyLog={dailyLog} 
-                    onAddFood={handleAddFood} 
-                    onRemoveFood={handleRemoveFood}
-                    onShareToPersonal={handleShareToPersonal}
-                />
-            )}
+            {view === 'diary' && dietPlan && <DiaryView plan={dietPlan} dailyLog={dailyLog} onAddFood={handleAddFood} />}
             {view === 'smart_meal' && (
                 <SmartMeal 
                     userProfile={userProfile}
@@ -435,11 +422,13 @@ const App: React.FC = () => {
                     dailyLog={dailyLog}
                     wellness={wellness}
                     onBack={() => setView('dashboard')}
-                    initialMessage={pendingChatMessage}
-                    onClearInitialMessage={() => setPendingChatMessage(null)}
                 />
             )}
-            {view === 'progress' && <ProgressView />}
+            {view === 'progress' && (
+                <Suspense fallback={<LoadingFallback />}>
+                    <ProgressView />
+                </Suspense>
+            )}
             {view === 'wellness' && <WellnessPlan state={wellness} onUpdate={setWellness} />}
             {view === 'challenges' && <ChallengesView />}
             {view === 'library' && <Library />}
@@ -527,14 +516,15 @@ const App: React.FC = () => {
         )}
 
         {isLiveOpen && (
-            <LiveConversation 
-                onClose={() => setIsLiveOpen(false)} 
-                userProfile={userProfile}
-                dietPlan={dietPlan}
-                dailyLog={dailyLog}
-                onAddFood={handleAddFood}
-                onRemoveFood={handleRemoveFood}
-            />
+            <Suspense fallback={<LoadingFallback />}>
+                <LiveConversation 
+                    onClose={() => setIsLiveOpen(false)} 
+                    userProfile={userProfile}
+                    dietPlan={dietPlan}
+                    dailyLog={dailyLog}
+                    onAddFood={handleAddFood}
+                />
+            </Suspense>
         )}
 
     </div>
