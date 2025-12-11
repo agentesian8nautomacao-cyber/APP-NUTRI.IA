@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect } from 'react';
 import { UserProfile, DailyPlan, LogItem, MealItem, WellnessState, AppView, ScanHistoryItem, Gender, ActivityLevel, Goal } from './types';
 import { generateDietPlan } from './services/geminiService';
 
@@ -20,16 +20,10 @@ import ProfileView from './components/ProfileView';
 import SettingsView from './components/SettingsView';
 import PersonalChat from './components/PersonalChat';
 
-// Lazy load components with heavy dependencies
-const ProgressView = lazy(() => import('./components/ProgressView'));
-const LiveConversation = lazy(() => import('./components/LiveConversation'));
+// Import components directly to avoid React 19 lazy loading issues
+import ProgressView from './components/ProgressView';
+import LiveConversation from './components/LiveConversation';
 
-// Loading fallback component
-const LoadingFallback = () => (
-  <div className="flex items-center justify-center h-full min-h-screen">
-    <div className="text-[#1A4D2E] text-lg">Carregando...</div>
-  </div>
-);
 
 import { MessageCircle, Camera, Home, Menu, BookOpen, Phone, User } from 'lucide-react';
 
@@ -425,9 +419,7 @@ const App: React.FC = () => {
                 />
             )}
             {view === 'progress' && (
-                <Suspense fallback={<LoadingFallback />}>
-                    <ProgressView />
-                </Suspense>
+                <ProgressView />
             )}
             {view === 'wellness' && <WellnessPlan state={wellness} onUpdate={setWellness} />}
             {view === 'challenges' && <ChallengesView />}
@@ -516,15 +508,13 @@ const App: React.FC = () => {
         )}
 
         {isLiveOpen && (
-            <Suspense fallback={<LoadingFallback />}>
-                <LiveConversation 
-                    onClose={() => setIsLiveOpen(false)} 
-                    userProfile={userProfile}
-                    dietPlan={dietPlan}
-                    dailyLog={dailyLog}
-                    onAddFood={handleAddFood}
-                />
-            </Suspense>
+            <LiveConversation 
+                onClose={() => setIsLiveOpen(false)} 
+                userProfile={userProfile}
+                dietPlan={dietPlan}
+                dailyLog={dailyLog}
+                onAddFood={handleAddFood}
+            />
         )}
 
     </div>
