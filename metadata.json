@@ -1,5 +1,5 @@
 {
-  "name": "Copia de segurança nutri ai ",
+  "name": "Nutri.ai",
   "description": "Nutri.ai é um app de nutrição que gera planos alimentares personalizados, analisa fotos de comida e monitora seus hábitos alimentares.",
   "requestFramePermissions": [
     "camera",

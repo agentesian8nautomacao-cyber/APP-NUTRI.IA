@@ -285,6 +285,76 @@ export const couponService = {
       throw new Error('CUPOM_ESGOTADO');
     }
   },
+
+  /**
+   * Ativa um cupom de forma atômica (validação + decremento + atualização de plano)
+   * Desacoplado de gateways de pagamento externos.
+   * 
+   * @param code Código do cupom
+   * @param userId ID do usuário que está ativando o cupom
+   * @returns Objeto com success, message, plan_type e account_type
+   */
+  async activateCoupon(code: string, userId: string): Promise<{
+    success: boolean;
+    message: string;
+    plan_type?: string;
+    account_type?: string;
+    error?: string;
+  }> {
+    const normalized = code.trim().toUpperCase();
+    if (!normalized) {
+      throw new Error('CÓDIGO_VAZIO');
+    }
+
+    // Validar disponibilidade B2B antes de ativar (se for cupom B2B)
+    const { data: validationData, error: validationError } = await supabase.rpc('validate_b2b_coupon_availability', {
+      p_coupon_code: normalized
+    });
+
+    if (!validationError && validationData) {
+      const validation = validationData as { valid: boolean; error?: string; message?: string };
+      if (!validation.valid) {
+        throw new Error(validation.error || 'CUPOM_ESGOTADO');
+      }
+    }
+
+    const { data, error } = await supabase.rpc('activate_coupon_internal', {
+      p_coupon_code: normalized,
+      p_user_id: userId
+    });
+
+    if (error) {
+      console.error('Erro ao ativar cupom:', error);
+      throw new Error(error.message || 'ERRO_ATIVACAO');
+    }
+
+    if (!data) {
+      throw new Error('ERRO_INTERNO');
+    }
+
+    const result = data as {
+      success: boolean;
+      message: string;
+      plan_type?: string;
+      account_type?: string;
+      error?: string;
+    };
+
+    if (!result.success) {
+      // Mapear erros para mensagens amigáveis
+      const errorMessages: Record<string, string> = {
+        'CUPOM_INEXISTENTE': 'Cupom não encontrado ou inativo.',
+        'CUPOM_ESGOTADO': 'Este cupom não possui mais ativações disponíveis.',
+        'PERFIL_INCOMPATIVEL': 'Este cupom é válido apenas para perfis de Academia ou Personal Trainer.',
+        'USUARIO_NAO_ENCONTRADO': 'Perfil do usuário não encontrado.',
+        'ERRO_INTERNO': 'Erro interno ao processar a ativação.'
+      };
+
+      throw new Error(errorMessages[result.error || ''] || result.message || 'Erro ao ativar cupom.');
+    }
+
+    return result;
+  },
 };
 
 export const authFlowService = {

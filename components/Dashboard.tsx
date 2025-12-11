@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { DailyPlan, UserProfile, LogItem, MealItem, WellnessState, AppView } from '../types';
-import { Search, Plus, ArrowRight, Heart, Utensils, Coffee, Sun, Moon, Apple, Check, Clock, Sparkles, Droplets, Flame, X, Loader2, Menu, Bell, Scan, ChevronRight, Smile, Meh, Frown, History, Share2, ChefHat, Palette, Type, Image as ImageIcon, Trash2, MessageCircle } from 'lucide-react';
+import { Search, Plus, ArrowRight, Heart, Utensils, Coffee, Sun, Moon, Apple, Check, Clock, Sparkles, Droplets, Flame, X, Loader2, Menu, Bell, Scan, ChevronRight, Smile, Meh, Frown, History, Share2, ChefHat, Palette, Type, Image as ImageIcon } from 'lucide-react';
 import { searchFoodAI, generateImageBackground } from '../services/geminiService';
 
 interface DashboardProps {
@@ -11,15 +11,13 @@ interface DashboardProps {
   wellness: WellnessState;
   setWellness: (state: WellnessState) => void;
   onAddFood: (food: MealItem, type: any) => void;
-  onRemoveFood: (id: string) => void;
-  onShareToPersonal: (msg: string) => void;
   onAnalyze: () => void;
   onChat: () => void;
   onNavigate: (view: AppView) => void;
   onMenuClick: () => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ plan, user, dailyLog, wellness, setWellness, onAddFood, onRemoveFood, onShareToPersonal, onNavigate, onMenuClick, onAnalyze }) => {
+const Dashboard: React.FC<DashboardProps> = ({ plan, user, dailyLog, wellness, setWellness, onAddFood, onNavigate, onMenuClick, onAnalyze }) => {
   const [activeCategory, setActiveCategory] = useState('all');
   const [tipIndex, setTipIndex] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
@@ -70,11 +68,6 @@ const Dashboard: React.FC<DashboardProps> = ({ plan, user, dailyLog, wellness, s
       onAddFood(item, "Snack"); 
       setIsSearchOpen(false);
       showToast(`Adicionado: ${item.name}`);
-  };
-
-  const handleShareItem = (item: LogItem) => {
-      const message = `Olha o que eu acabei de comer, coach: **${item.name}** (${item.calories} kcal).\nO que acha dessa escolha para o meu ${item.type === 'Lunch' ? 'almoço' : item.type === 'Dinner' ? 'jantar' : 'lanche'}?`;
-      onShareToPersonal(message);
   };
 
   // --- STREAK CANVAS LOGIC ---
@@ -758,25 +751,7 @@ const Dashboard: React.FC<DashboardProps> = ({ plan, user, dailyLog, wellness, s
                     </div>
                     <div className="text-[10px] font-bold text-[#4F6F52] uppercase bg-[#F5F1E8] px-2 py-0.5 rounded-full mb-2">{item.type}</div>
                     <h4 className="font-serif text-md leading-tight text-[#1A4D2E] mb-1 line-clamp-1 w-full">{item.name}</h4>
-                    <div className="text-xs font-medium text-[#4F6F52] opacity-70 mb-2">{item.calories} kcal</div>
-                    
-                    {/* Action Buttons */}
-                    <div className="flex gap-2 mt-auto" onClick={(e) => e.stopPropagation()}>
-                        <button 
-                            onClick={() => onRemoveFood(item.id)}
-                            className="p-2 bg-red-50 text-red-400 rounded-full hover:bg-red-100 transition-colors"
-                            title="Remover"
-                        >
-                            <Trash2 size={14} />
-                        </button>
-                        <button 
-                            onClick={() => handleShareItem(item)}
-                            className="p-2 bg-blue-50 text-blue-500 rounded-full hover:bg-blue-100 transition-colors"
-                            title="Enviar para Coach"
-                        >
-                            <MessageCircle size={14} />
-                        </button>
-                    </div>
+                    <div className="text-xs font-medium text-[#4F6F52] opacity-70">{item.calories} kcal</div>
                 </div>
              ))}
          </div>

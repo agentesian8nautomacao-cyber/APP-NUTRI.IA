@@ -20,25 +20,6 @@ export enum Gender {
   Other = "Other"
 }
 
-export enum AccountType {
-  USER_B2C = "USER_B2C",      // Usuário Comum (paga própria assinatura)
-  USER_GYM = "USER_GYM",      // Aluno de Academia (vinculado a conta mãe)
-  USER_PERSONAL = "USER_PERSONAL"  // Personal Trainer (conta administrativa)
-}
-
-export interface UserAccessInfo {
-  account_type: AccountType;
-  has_access: boolean;
-  block_reason?: string;
-  block_message?: string;
-  can_use_voice: boolean;
-  can_use_chat: boolean;
-  can_log_meals: boolean;
-  can_access_progress: boolean;
-  can_access_dashboard: boolean;
-  redirect_to: 'dashboard' | 'progress' | 'blocked';
-}
-
 export interface PantryItem {
   id: string;
   name: string;
@@ -73,7 +54,6 @@ export interface UserProfile {
   customChatInstructions?: string; // Prompt personalizado para o chat
   aiVoice?: string; // 'Puck', 'Charon', 'Kore', 'Fenrir', 'Zephyr'
   knowledgeBase?: KnowledgeBase; // Arquivo de contexto (PDF/TXT/IMG)
-  accountType?: AccountType; // Tipo de conta (USER_B2C, USER_GYM, USER_PERSONAL)
 }
 
 export interface MacroNutrients {

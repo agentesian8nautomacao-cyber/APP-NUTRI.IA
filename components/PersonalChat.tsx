@@ -9,11 +9,9 @@ interface PersonalChatProps {
   dailyLog?: LogItem[];
   wellness?: WellnessState;
   onBack: () => void;
-  initialMessage?: string | null;
-  onClearInitialMessage?: () => void;
 }
 
-const PersonalChat: React.FC<PersonalChatProps> = ({ userProfile, dailyLog, wellness, onBack, initialMessage, onClearInitialMessage }) => {
+const PersonalChat: React.FC<PersonalChatProps> = ({ userProfile, dailyLog, wellness, onBack }) => {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([
     { 
@@ -35,14 +33,6 @@ const PersonalChat: React.FC<PersonalChatProps> = ({ userProfile, dailyLog, well
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
-
-  // Handle Initial Message (Auto-send)
-  useEffect(() => {
-      if (initialMessage) {
-          handleSend(initialMessage);
-          if (onClearInitialMessage) onClearInitialMessage();
-      }
-  }, [initialMessage]);
 
   const handleSend = async (text: string = input, attachment?: {data: string, mimeType: string}) => {
     if ((!text.trim() && !attachment) || isLoading) return;

@@ -15,90 +15,30 @@ import {
   ScrollText,
   Dumbbell
 } from 'lucide-react';
-import { AppView, UserAccessInfo } from '../types';
+import { AppView } from '../types';
 
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   currentView: AppView;
   onNavigate: (view: AppView) => void;
-  accessInfo?: UserAccessInfo | null;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, currentView, onNavigate, accessInfo }) => {
+const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, currentView, onNavigate }) => {
   
-  // Menu items com condições de visibilidade
-  const allMenuItems = [
-    { 
-      id: 'dashboard', 
-      label: 'Início', 
-      icon: Home,
-      visible: accessInfo?.can_access_dashboard !== false
-    },
-    { 
-      id: 'diet_plan', 
-      label: 'Meu Plano Alimentar', 
-      icon: ScrollText,
-      visible: accessInfo?.can_log_meals !== false
-    },
-    { 
-      id: 'smart_meal', 
-      label: 'Refeição Inteligente', 
-      icon: UtensilsCrossed,
-      visible: accessInfo?.can_log_meals !== false
-    },
-    { 
-      id: 'personal_chat', 
-      label: 'Personal Nutri', 
-      icon: Dumbbell,
-      visible: accessInfo?.can_use_chat !== false
-    },
-    { 
-      id: 'progress', 
-      label: 'Progresso', 
-      icon: TrendingUp,
-      visible: accessInfo?.can_access_progress === true // Apenas para USER_PERSONAL
-    },
-    { 
-      id: 'wellness', 
-      label: 'Plano de Bem-estar', 
-      icon: Heart,
-      visible: accessInfo?.can_log_meals !== false
-    },
-    { 
-      id: 'challenges', 
-      label: 'Desafios', 
-      icon: Trophy,
-      visible: true // Sempre visível
-    },
-    { 
-      id: 'library', 
-      label: 'Biblioteca', 
-      icon: BookOpen,
-      visible: true // Sempre visível
-    },
-    { 
-      id: 'profile', 
-      label: 'Meu Perfil', 
-      icon: UserCircle,
-      visible: true // Sempre visível
-    },
-    { 
-      id: 'security', 
-      label: 'Privacidade', 
-      icon: ShieldCheck,
-      visible: true // Sempre visível
-    },
-    { 
-      id: 'settings', 
-      label: 'Configurações', 
-      icon: Settings,
-      visible: true // Sempre visível
-    },
+  const menuItems = [
+    { id: 'dashboard', label: 'Início', icon: Home },
+    { id: 'diet_plan', label: 'Meu Plano Alimentar', icon: ScrollText },
+    { id: 'smart_meal', label: 'Refeição Inteligente', icon: UtensilsCrossed },
+    { id: 'personal_chat', label: 'Personal Nutri', icon: Dumbbell },
+    { id: 'progress', label: 'Progresso', icon: TrendingUp },
+    { id: 'wellness', label: 'Plano de Bem-estar', icon: Heart },
+    { id: 'challenges', label: 'Desafios', icon: Trophy },
+    { id: 'library', label: 'Biblioteca', icon: BookOpen },
+    { id: 'profile', label: 'Meu Perfil', icon: UserCircle },
+    { id: 'security', label: 'Privacidade', icon: ShieldCheck },
+    { id: 'settings', label: 'Configurações', icon: Settings },
   ];
-  
-  // Filtrar itens baseado nas permissões
-  const menuItems = allMenuItems.filter(item => item.visible !== false);
 
   return (
     <>
