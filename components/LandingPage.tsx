@@ -134,11 +134,11 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDe
 
             {/* HOME HERO - OPTICALLY CENTERED */}
             {screen === 'home' && (
-                <div className="flex-grow flex flex-col justify-center items-center relative -mt-16 pb-32">
+                <div className="flex-grow flex flex-col justify-center items-center relative -mt-16 pb-40">
                     {/* The -mt-16 helps optical centering by pulling it up slightly against the bottom slider */}
-                    {/* pb-32 adds bottom padding to prevent slider overlap */}
+                    {/* pb-40 adds more bottom padding to prevent slider overlap with badges */}
                     
-                    <div className="max-w-lg w-full animate-in zoom-in duration-1000 relative z-40">
+                    <div className="max-w-lg w-full animate-in zoom-in duration-1000 relative z-30">
                         {/* Glassmorphism Card */}
                          <div className="bg-white/20 backdrop-blur-md p-10 md:p-12 rounded-[3.5rem] border border-white/40 shadow-2xl ring-1 ring-white/30 relative overflow-visible transition-all duration-500 hover:shadow-3xl hover:bg-white/25">
                              
@@ -164,6 +164,11 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDe
                                         <Star size={14} className="text-[#1A4D2E] fill-[#1A4D2E]"/>
                                         <span className="text-[10px] font-bold text-[#1A4D2E] uppercase">Premium</span>
                                     </div>
+                                </div>
+                                
+                                {/* Shimmer Effect - Below Badges */}
+                                <div className="absolute top-full left-1/2 -translate-x-1/2 w-64 h-1 mt-4 overflow-hidden">
+                                    <div className="absolute top-0 -left-full w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-12 animate-[shimmer_3s_infinite]"></div>
                                 </div>
                              </div>
                         </div>
@@ -268,7 +273,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDe
 
             {/* --- SLIDER INTERACTION (REFINED) --- */}
             {screen === 'home' && (
-                <div className="w-full fixed bottom-10 left-0 px-6 z-30 animate-in slide-in-from-bottom duration-700 delay-300">
+                <div className="w-full fixed bottom-8 left-0 px-6 z-50 animate-in slide-in-from-bottom duration-700 delay-300">
                     <div 
                         ref={trackRef}
                         className="relative bg-[#1A4D2E]/90 backdrop-blur-sm rounded-[3rem] h-20 shadow-2xl shadow-[#1A4D2E]/20 max-w-sm mx-auto overflow-hidden touch-none border border-white/10"
