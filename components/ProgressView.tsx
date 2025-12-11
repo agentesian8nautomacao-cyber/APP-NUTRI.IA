@@ -17,7 +17,7 @@ import {
   ComposedChart,
   Line
 } from 'recharts';
-import { Calendar, TrendingUp, Activity, BrainCircuit, PieChart as PieIcon, ArrowUpRight, Scale, CheckCircle2, Target, ChevronDown } from 'lucide-react';
+import { Calendar, TrendingUp, Zap, BrainCircuit, PieChart as PieIcon, ArrowUpRight, Scale, CheckCircle2, Target, ChevronDown } from 'lucide-react';
 
 // --- MOCK DATA GENERATORS ---
 // Simulating dynamic data based on time range
@@ -205,7 +205,7 @@ const ProgressView: React.FC = () => {
               <div className="bg-white rounded-[2.5rem] p-6 shadow-md border border-[#1A4D2E]/5">
                 <div className="flex justify-between items-center mb-6">
                     <h3 className="text-[#1A4D2E] font-serif text-xl flex items-center gap-2">
-                        <Activity size={20} className="text-[#4F6F52]"/> Ingestão Calórica
+                        <Zap size={20} className="text-[#4F6F52]"/> Ingestão Calórica
                     </h3>
                     <div className="text-right">
                         <div className="text-xs text-[#4F6F52]">Média</div>
@@ -323,7 +323,7 @@ const ProgressView: React.FC = () => {
                         </li>
                         <li className="flex gap-4 p-4 bg-[#F5F1E8]/50 rounded-2xl">
                             <div className="mt-1 w-6 h-6 rounded-full bg-orange-500/20 text-orange-700 flex items-center justify-center flex-shrink-0">
-                                <Activity size={14} />
+                                <Zap size={14} />
                             </div>
                             <div>
                                 <h4 className="font-bold text-[#1A4D2E] text-sm mb-1">Déficit Calórico Consistente</h4>
