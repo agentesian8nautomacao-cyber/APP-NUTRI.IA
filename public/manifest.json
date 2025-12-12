@@ -10,25 +10,25 @@
   "scope": "/",
   "icons": [
     {
-      "src": "/logo-Nutri.ai.jpeg",
+      "src": "/icon-Nutri.ai.jpeg",
       "sizes": "192x192",
       "type": "image/jpeg",
       "purpose": "any"
     },
     {
-      "src": "/logo-Nutri.ai.jpeg",
+      "src": "/icon-Nutri.ai.jpeg",
       "sizes": "512x512",
       "type": "image/jpeg",
       "purpose": "any"
     },
     {
-      "src": "/logo-Nutri.ai.jpeg",
+      "src": "/icon-Nutri.ai.jpeg",
       "sizes": "192x192",
       "type": "image/jpeg",
       "purpose": "maskable"
     },
     {
-      "src": "/logo-Nutri.ai.jpeg",
+      "src": "/icon-Nutri.ai.jpeg",
       "sizes": "512x512",
       "type": "image/jpeg",
       "purpose": "maskable"
