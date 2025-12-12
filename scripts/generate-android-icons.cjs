@@ -3,15 +3,11 @@
  * 
  * Requer: sharp (npm install sharp)
  * 
- * Uso: node scripts/generate-android-icons.js
+ * Uso: node scripts/generate-android-icons.cjs
  */
 
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const fs = require('fs');
+const path = require('path');
 
 // Tamanhos para cada densidade
 const sizes = {
@@ -30,17 +26,10 @@ async function generateIcons() {
     // Verificar se sharp está instalado
     let sharp;
     try {
-      const sharpModule = await import('sharp');
-      // sharp pode ser exportado como default ou named export
-      sharp = sharpModule.default || sharpModule.sharp || sharpModule;
-      if (!sharp) {
-        throw new Error('sharp não encontrado no módulo');
-      }
+      sharp = require('sharp');
     } catch (e) {
       console.error('❌ Erro: sharp não está instalado.');
       console.log('📦 Instale com: npm install sharp --save-dev');
-      console.error('Erro detalhado:', e.message);
-      console.error('Stack:', e.stack);
       process.exit(1);
     }
 
@@ -127,3 +116,4 @@ async function generateIcons() {
 }
 
 generateIcons();
+
