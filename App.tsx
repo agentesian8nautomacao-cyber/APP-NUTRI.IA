@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { UserProfile, DailyPlan, LogItem, MealItem, WellnessState, AppView, ScanHistoryItem, Gender, ActivityLevel, Goal } from './types';
 import { generateDietPlan } from './services/geminiService';
 
-// Components - Lazy load heavy components
+// Components
 import LandingPage from './components/LandingPage';
 import Onboarding from './components/Onboarding';
 import Sidebar from './components/Sidebar';
@@ -12,18 +12,15 @@ import DietPlanView from './components/DietPlanView';
 import DiaryView from './components/DiaryView';
 import SmartMeal from './components/SmartMeal';
 import PlateAnalyzer from './components/PlateAnalyzer';
+import ProgressView from './components/ProgressView';
 import WellnessPlan from './components/WellnessPlan';
 import ChallengesView from './components/ChallengesView';
 import Library from './components/Library';
 import ChatAssistant from './components/ChatAssistant';
+import LiveConversation from './components/LiveConversation';
 import ProfileView from './components/ProfileView';
 import SettingsView from './components/SettingsView';
 import PersonalChat from './components/PersonalChat';
-
-// Import components directly to avoid React 19 lazy loading issues
-import ProgressView from './components/ProgressView';
-import LiveConversation from './components/LiveConversation';
-
 
 import { MessageCircle, Camera, Home, Menu, BookOpen, Phone, User } from 'lucide-react';
 
@@ -175,15 +172,12 @@ const App: React.FC = () => {
     setView('generating');
     setIsGenerating(true);
     try {
-        console.log("Iniciando geração de plano para perfil:", profile.name);
         const plan = await generateDietPlan(profile);
-        console.log("Plano gerado com sucesso:", plan);
         setDietPlan(plan);
         setView('diet_plan'); // Redirect directly to Diet Plan view
-    } catch (error: any) {
+    } catch (error) {
         console.error("Failed to generate plan", error);
-        const errorMessage = error?.message || "Ocorreu um erro ao gerar seu plano.";
-        alert(`Erro: ${errorMessage}\n\nVerifique:\n- Se a chave API está configurada\n- Se há conexão com a internet\n- Tente novamente em alguns instantes.`);
+        alert("Ocorreu um erro ao gerar seu plano. Tente novamente.");
         setView('onboarding');
     } finally {
         setIsGenerating(false);
@@ -421,9 +415,7 @@ const App: React.FC = () => {
                     onBack={() => setView('dashboard')}
                 />
             )}
-            {view === 'progress' && (
-                <ProgressView />
-            )}
+            {view === 'progress' && <ProgressView />}
             {view === 'wellness' && <WellnessPlan state={wellness} onUpdate={setWellness} />}
             {view === 'challenges' && <ChallengesView />}
             {view === 'library' && <Library />}

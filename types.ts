@@ -1,57 +1,24 @@
 
-// Export enum as const object to avoid tree-shaking issues in production
-export const ActivityLevel = {
-  Sedentary: "Sedentary",
-  Light: "Light",
-  Moderate: "Moderate",
-  Active: "Active",
-  VeryActive: "Very Active"
-} as const;
+export enum ActivityLevel {
+  Sedentary = "Sedentary",
+  Light = "Light",
+  Moderate = "Moderate",
+  Active = "Active",
+  VeryActive = "Very Active"
+}
 
-export type ActivityLevel = typeof ActivityLevel[keyof typeof ActivityLevel];
+export enum Goal {
+  LoseWeight = "Lose Weight",
+  Maintain = "Maintain Weight",
+  GainMuscle = "Gain Muscle",
+  ImproveHealth = "General Health"
+}
 
-// Explicit arrays for production builds to avoid Object.values() issues
-export const ActivityLevelValues: readonly string[] = [
-  ActivityLevel.Sedentary,
-  ActivityLevel.Light,
-  ActivityLevel.Moderate,
-  ActivityLevel.Active,
-  ActivityLevel.VeryActive
-];
-
-// Export enum as const object to avoid tree-shaking issues in production
-export const Goal = {
-  LoseWeight: "Lose Weight",
-  Maintain: "Maintain Weight",
-  GainMuscle: "Gain Muscle",
-  ImproveHealth: "General Health"
-} as const;
-
-export type Goal = typeof Goal[keyof typeof Goal];
-
-// Explicit arrays for production builds to avoid Object.values() issues
-export const GoalValues: readonly string[] = [
-  Goal.LoseWeight,
-  Goal.Maintain,
-  Goal.GainMuscle,
-  Goal.ImproveHealth
-];
-
-// Export enum as const object to avoid tree-shaking issues in production
-export const Gender = {
-  Male: "Male",
-  Female: "Female",
-  Other: "Other"
-} as const;
-
-export type Gender = typeof Gender[keyof typeof Gender];
-
-// Explicit arrays for production builds to avoid Object.values() issues
-export const GenderValues: readonly string[] = [
-  Gender.Male,
-  Gender.Female,
-  Gender.Other
-];
+export enum Gender {
+  Male = "Male",
+  Female = "Female",
+  Other = "Other"
+}
 
 export interface PantryItem {
   id: string;

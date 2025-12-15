@@ -1,7 +1,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality, Blob, Type, FunctionDeclaration } from "@google/genai";
-import { X, Mic, MicOff, PhoneOff, Radio, CheckCircle2, Lock, Home, BookOpen, User, Mic as MicIcon, ArrowDown, Zap, Clock, Infinity, Check } from 'lucide-react';
+import { X, Mic, MicOff, PhoneOff, Activity, CheckCircle2, Lock, Home, BookOpen, User, Mic as MicIcon, ArrowDown, Zap, Clock, Infinity, Check } from 'lucide-react';
 import { UserProfile, DailyPlan, LogItem, MealItem } from '../types';
 
 interface LiveConversationProps {
@@ -385,7 +385,7 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
        {/* Header */}
        <div className="p-6 flex justify-between items-center relative z-10">
           <div className="flex items-center gap-3 text-[#F5F1E8]">
-             <Radio className={`animate-pulse ${isConnected ? 'text-green-400' : 'text-yellow-400'}`} />
+             <Activity className={`animate-pulse ${isConnected ? 'text-green-400' : 'text-yellow-400'}`} />
              <span className="font-serif text-lg tracking-wider">{status}</span>
           </div>
           <button 

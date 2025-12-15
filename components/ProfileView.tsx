@@ -1,6 +1,6 @@
 
 import React, { useRef, useState } from 'react';
-import { UserProfile, Gender, ActivityLevel, Goal, ActivityLevelValues, GoalValues } from '../types';
+import { UserProfile, Gender, ActivityLevel, Goal } from '../types';
 import { ArrowLeft, Camera, User, Upload, Edit2, Save } from 'lucide-react';
 
 interface ProfileViewProps {
@@ -173,10 +173,10 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => 
                 <InfoItem label="Altura" field="height" type="number" />
                 <InfoItem label="Peso" field="weight" type="number" />
                 <div className="col-span-2">
-                    <InfoItem label="Objetivo" field="goal" options={GoalValues} />
+                    <InfoItem label="Objetivo" field="goal" options={Object.values(Goal)} />
                 </div>
                  <div className="col-span-2">
-                    <InfoItem label="Nível de Atividade" field="activityLevel" options={ActivityLevelValues} />
+                    <InfoItem label="Nível de Atividade" field="activityLevel" options={Object.values(ActivityLevel)} />
                 </div>
             </div>
         </div>

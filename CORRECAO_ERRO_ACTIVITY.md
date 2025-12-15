@@ -115,3 +115,5 @@ import { ActivityLevelValues, GoalValues } from '../types';
 - A solução é compatível com React 19 e Vite 6
 - Não há impacto negativo na performance ou no tamanho do bundle
 
+
+

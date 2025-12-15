@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { ArrowLeft, Ticket, ChevronRight, ChefHat } from 'lucide-react';
+import { ArrowLeft, Ticket, ChevronRight, ChefHat, Check, Star } from 'lucide-react';
 
 interface LandingPageProps {
   onGetStarted: () => void;
@@ -72,29 +72,11 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDe
   return (
     <div className="min-h-screen bg-[#F5F1E8] text-[#1A1A1A] font-sans relative overflow-hidden flex flex-col">
         
-        {/* --- BACKGROUND IMAGE (HEALTHY MEAL) --- */}
-        {screen === 'home' && (
-            <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
-                {/* Background Image - Healthy Salad Bowl - Sharp and clear */}
-                <div 
-                    className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-                    style={{
-                        backgroundImage: `url('/Image 2025-12-10 at 19.43.07.jpeg')`,
-                        filter: 'blur(0px)',
-                        opacity: 0.95,
-                        transform: 'scale(1.1)'
-                    }}
-                />
-                {/* Overlay for better text contrast */}
-                <div className="absolute inset-0 bg-white/15" />
-            </div>
-        )}
-
         {/* --- TOPOGRAPHIC BACKGROUND LINES (DESIGN ELEMENT) --- */}
         {screen === 'home' && (
-            <div className="absolute inset-0 overflow-hidden pointer-events-none z-1">
+            <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
                 <svg 
-                    className="w-full h-full opacity-[0.04]" 
+                    className="w-full h-full opacity-[0.06]" 
                     viewBox="0 0 1440 900" 
                     xmlns="http://www.w3.org/2000/svg" 
                     preserveAspectRatio="none"
@@ -119,14 +101,14 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDe
             
             {/* Header */}
             <div className="pt-6 flex justify-between items-center z-40">
-                 <div className="flex items-center gap-3">
-                     <div className="w-12 h-12 bg-[#1A4D2E] rounded-full flex items-center justify-center text-[#F5F1E8] shadow-lg">
-                        <span className="text-2xl">🥗</span>
+                 <div className="flex items-center gap-2">
+                     <div className="w-10 h-10 bg-[#1A4D2E] rounded-full flex items-center justify-center text-[#F5F1E8] shadow-md">
+                        <span className="text-xl">🥗</span>
                      </div>
-                     <span className="font-serif text-4xl font-bold text-[#1A4D2E] drop-shadow-lg">Nutri.ai</span>
+                     <span className="font-serif text-2xl font-bold text-[#1A4D2E]">Nutri.ai</span>
                  </div>
                  {screen === 'home' && (
-                     <button onClick={() => setScreen('login')} className="text-base font-bold text-[#1A4D2E] underline decoration-2 underline-offset-4 hover:text-[#4F6F52] transition-colors drop-shadow-sm">
+                     <button onClick={() => setScreen('login')} className="text-sm font-bold text-[#1A4D2E] underline decoration-2 underline-offset-4">
                          Entrar
                      </button>
                  )}
@@ -134,18 +116,38 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDe
 
             {/* HOME HERO - OPTICALLY CENTERED */}
             {screen === 'home' && (
-                <div className="flex-grow flex flex-col justify-center items-center relative -mt-16 pb-40">
+                <div className="flex-grow flex flex-col justify-center items-center relative -mt-16">
                     {/* The -mt-16 helps optical centering by pulling it up slightly against the bottom slider */}
-                    {/* pb-40 adds more bottom padding to prevent slider overlap with badges */}
                     
-                    <div className="max-w-lg w-full animate-in zoom-in duration-1000 relative z-30 text-center">
-                        <h1 className="font-serif text-6xl md:text-8xl font-bold tracking-tight mb-8 text-[#1A4D2E] leading-[1.05] drop-shadow-2xl">
-                            Nutrição <br/>
-                            <span className="text-[#1A4D2E] italic font-serif">Consciente.</span>
-                        </h1>
-                        <p className="text-[#1A4D2E] font-semibold text-xl md:text-2xl leading-relaxed mb-10 max-w-md mx-auto drop-shadow-lg">
-                            Planos alimentares personalizados e chefs IA para sua melhor versão.
-                        </p>
+                    <div className="max-w-lg w-full animate-in zoom-in duration-1000 relative">
+                        {/* Glassmorphism Card */}
+                         <div className="bg-white/20 backdrop-blur-md p-10 md:p-12 rounded-[3.5rem] border border-white/40 shadow-2xl ring-1 ring-white/30 relative overflow-hidden transition-all duration-500 hover:shadow-3xl hover:bg-white/25">
+                             
+                             {/* Subtle inner highlight */}
+                             <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-white/40 to-transparent pointer-events-none"></div>
+
+                             <div className="relative z-10 text-center">
+                                <h1 className="font-serif text-5xl md:text-7xl font-medium tracking-tight mb-6 text-[#1A1A1A] leading-[1.05]">
+                                    Nutrição <br/>
+                                    <span className="text-[#1A4D2E] italic font-serif">Consciente.</span>
+                                </h1>
+                                <p className="text-[#4F6F52] font-medium text-lg leading-relaxed mb-8 max-w-xs mx-auto">
+                                    Planos alimentares personalizados e chefs IA para sua melhor versão.
+                                </p>
+
+                                {/* Trust Badges */}
+                                <div className="flex justify-center gap-4">
+                                    <div className="flex items-center gap-1 bg-[#1A4D2E]/10 px-4 py-2 rounded-full backdrop-blur-md border border-[#1A4D2E]/5">
+                                        <Check size={14} className="text-[#1A4D2E]"/>
+                                        <span className="text-[10px] font-bold text-[#1A4D2E] uppercase">Saudável</span>
+                                    </div>
+                                    <div className="flex items-center gap-1 bg-[#1A4D2E]/10 px-4 py-2 rounded-full backdrop-blur-md border border-[#1A4D2E]/5">
+                                        <Star size={14} className="text-[#1A4D2E] fill-[#1A4D2E]"/>
+                                        <span className="text-[10px] font-bold text-[#1A4D2E] uppercase">Premium</span>
+                                    </div>
+                                </div>
+                             </div>
+                        </div>
                     </div>
                 </div>
             )}
@@ -247,7 +249,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDe
 
             {/* --- SLIDER INTERACTION (REFINED) --- */}
             {screen === 'home' && (
-                <div className="w-full fixed bottom-8 left-0 px-6 z-50 animate-in slide-in-from-bottom duration-700 delay-300">
+                <div className="w-full fixed bottom-10 left-0 px-6 z-50 animate-in slide-in-from-bottom duration-700 delay-300">
                     <div 
                         ref={trackRef}
                         className="relative bg-[#1A4D2E]/90 backdrop-blur-sm rounded-[3rem] h-20 shadow-2xl shadow-[#1A4D2E]/20 max-w-sm mx-auto overflow-hidden touch-none border border-white/10"
@@ -257,11 +259,11 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDe
                             className="absolute inset-0 flex items-center justify-center pointer-events-none transition-opacity duration-300"
                             style={{ opacity: textOpacity, paddingLeft: '60px' }}
                          >
-                             <span className="text-[#F5F1E8] font-semibold text-base tracking-[0.2em] opacity-95 whitespace-nowrap animate-pulse drop-shadow-lg">
+                             <span className="text-[#F5F1E8] font-light text-sm tracking-[0.2em] opacity-80 whitespace-nowrap animate-pulse">
                                  DESLIZE PARA ENTRAR
                              </span>
-                             <div className="absolute right-6 opacity-80">
-                                 <ChevronRight size={24} className="text-[#F5F1E8] drop-shadow-lg" />
+                             <div className="absolute right-6 opacity-60">
+                                 <ChevronRight size={20} className="text-[#F5F1E8]" />
                              </div>
                          </div>
 
@@ -286,7 +288,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDe
                     <div className="text-center mt-6">
                          <button 
                             onClick={() => setScreen('coupon')}
-                            className="text-xs font-bold text-[#1A4D2E] uppercase tracking-widest hover:text-[#4F6F52] transition-colors border-b-2 border-transparent hover:border-[#1A4D2E] drop-shadow-sm"
+                            className="text-[10px] font-bold text-[#4F6F52] uppercase tracking-widest hover:text-[#1A4D2E] transition-colors border-b border-transparent hover:border-[#1A4D2E]"
                          >
                              Tenho um convite
                          </button>

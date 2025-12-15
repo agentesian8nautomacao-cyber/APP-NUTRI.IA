@@ -18,34 +18,6 @@ export default defineConfig(({ mode }) => {
         alias: {
           '@': path.resolve(__dirname, '.'),
         }
-      },
-      build: {
-        rollupOptions: {
-          output: {
-            manualChunks(id) {
-              // Não separar React em chunk separado para evitar problemas
-              // Incluir React no bundle principal
-              if (id.includes('node_modules')) {
-                if (id.includes('@google/genai')) {
-                  return 'vendor-google';
-                }
-                if (id.includes('recharts')) {
-                  return 'vendor-charts';
-                }
-                // Incluir React e outras dependências no vendor principal
-                // para evitar problemas de inicialização
-                return 'vendor';
-              }
-            },
-          },
-          external: [],
-        },
-        chunkSizeWarningLimit: 1000, // Aumentar limite para 1MB
-        commonjsOptions: {
-          include: [/lucide-react/, /node_modules/],
-        },
-        minify: 'esbuild',
-        target: 'es2022',
-      },
+      }
     };
 });
