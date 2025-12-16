@@ -19,8 +19,35 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
   const [status, setStatus] = useState("Conectando...");
   const [loggedItem, setLoggedItem] = useState<string | null>(null);
   
-  // Timer State for 15 min limit
-  const [secondsActive, setSecondsActive] = useState(0);
+  // Helper functions for localStorage persistence
+  const getStorageKey = () => {
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    return `nutriai_voice_time_used_${today}`;
+  };
+
+  const loadTimeUsed = (): number => {
+    try {
+      const stored = localStorage.getItem(getStorageKey());
+      if (stored) {
+        const parsed = parseInt(stored, 10);
+        return isNaN(parsed) ? 0 : Math.max(0, parsed);
+      }
+    } catch (e) {
+      console.error('Error loading voice time:', e);
+    }
+    return 0;
+  };
+
+  const saveTimeUsed = (seconds: number) => {
+    try {
+      localStorage.setItem(getStorageKey(), seconds.toString());
+    } catch (e) {
+      console.error('Error saving voice time:', e);
+    }
+  };
+
+  // Timer State for 15 min limit - Load from localStorage on mount
+  const [secondsActive, setSecondsActive] = useState(() => loadTimeUsed());
   const LIMIT_SECONDS = 15 * 60; // 15 Minutes
   const isLimitReached = secondsActive >= LIMIT_SECONDS;
 
@@ -100,16 +127,29 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
     return buffer;
   };
 
-  // Timer Effect
+  // Timer Effect - Save to localStorage every second when active
   useEffect(() => {
     let interval: any;
     if (isConnected && !isLimitReached) {
         interval = setInterval(() => {
-            setSecondsActive(prev => prev + 1);
+            setSecondsActive(prev => {
+              const newValue = prev + 1;
+              // Save to localStorage every second
+              saveTimeUsed(newValue);
+              return newValue;
+            });
         }, 1000);
     }
     return () => clearInterval(interval);
   }, [isConnected, isLimitReached]);
+
+  // Save time when component unmounts or when limit is reached
+  useEffect(() => {
+    return () => {
+      // Save on unmount
+      saveTimeUsed(secondsActive);
+    };
+  }, [secondsActive]);
 
   // Init Session
   useEffect(() => {
@@ -427,7 +467,9 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
 
           <h2 className="mt-8 text-3xl font-serif text-[#F5F1E8]">Nutri.ai</h2>
           <p className="text-[#F5F1E8]/60 mt-2">Assistente Pessoal</p>
-          <p className="text-[#F5F1E8]/30 text-xs mt-4">Tempo restante: {Math.floor((LIMIT_SECONDS - secondsActive)/60)} min</p>
+          <p className="text-[#F5F1E8]/30 text-xs mt-4">
+            Tempo restante: {Math.max(0, Math.floor((LIMIT_SECONDS - secondsActive)/60))} min {Math.max(0, (LIMIT_SECONDS - secondsActive) % 60)}s
+          </p>
        </div>
 
        {/* Controls */}
