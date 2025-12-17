@@ -414,6 +414,14 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
   return (
     <div className="fixed inset-0 bg-[#1A4D2E] z-50 flex flex-col animate-in fade-in duration-500">
        
+       {/* DEV BUTTON: Trigger Limit */}
+       <button 
+         onClick={() => setSecondsActive(LIMIT_SECONDS)}
+         className="absolute top-24 right-6 bg-orange-500/80 hover:bg-orange-600 text-white text-[10px] font-bold px-3 py-1.5 rounded-full z-50 transition-all border border-white/20 shadow-lg"
+       >
+         Testar Limite (Dev)
+       </button>
+
        {/* Header */}
        <div className="p-6 flex justify-between items-center relative z-10">
           <div className="flex items-center gap-3 text-[#F5F1E8]">
