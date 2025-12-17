@@ -565,6 +565,22 @@ async function processSubscriptionCancelled(webhookData: CaktoPayload) {
 }
 
 Deno.serve(async (req) => {
+  // Health check para GET (evita erro 405 quando alguém acessa via navegador)
+  if (req.method === 'GET') {
+    return new Response(
+      JSON.stringify({
+        status: 'ok',
+        service: 'cakto-webhook',
+        supported_methods: ['POST'],
+        message: 'Webhook endpoint is active. Use POST method to send webhook events.',
+      }),
+      {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
+  }
+
   console.log('\n🔔 Webhook Cakto recebido:', new Date().toISOString());
 
   // Log de headers recebidos para debug
@@ -578,7 +594,16 @@ Deno.serve(async (req) => {
   });
 
   if (req.method !== 'POST') {
-    return new Response('Method Not Allowed', { status: 405 });
+    return new Response(
+      JSON.stringify({
+        error: 'Method Not Allowed',
+        supported_methods: ['GET', 'POST'],
+      }),
+      {
+        status: 405,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
   }
 
   try {
@@ -689,7 +714,12 @@ Deno.serve(async (req) => {
     }
 
     // Processar evento
-    const event = webhookData.event;
+    // Normalizar nome do evento (suportar variações)
+    let event: string = webhookData.event;
+    if (event === 'subscription_canceled') {
+      event = 'subscription_cancelled'; // Normalizar para versão com dois "ll"
+    }
+    
     let result;
 
     switch (event) {
@@ -709,12 +739,13 @@ Deno.serve(async (req) => {
         break;
 
       default:
-        console.log(`⚠️ Evento não suportado: ${event}`);
+        console.log(`⚠️ Evento não suportado: ${webhookData.event}`);
         return new Response(
           JSON.stringify({
             success: false,
-            error: `Evento não suportado: ${event}`,
+            error: `Evento não suportado: ${webhookData.event}`,
             supported_events: ['purchase_approved', 'refund', 'subscription_cancelled'],
+            note: 'subscription_canceled (com um "l") será automaticamente convertido para subscription_cancelled',
           }),
           {
             status: 400,
