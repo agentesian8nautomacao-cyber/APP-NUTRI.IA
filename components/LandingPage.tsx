@@ -102,8 +102,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDe
             {/* Header */}
             <div className="pt-6 flex justify-between items-center z-40">
                  <div className="flex items-center gap-2">
-                     <div className="w-10 h-10 bg-[#1A4D2E] rounded-full flex items-center justify-center text-[#F5F1E8] shadow-md">
-                        <span className="text-xl">🥗</span>
+                     <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-md overflow-hidden">
+                        <img src="/icon-192.png" alt="Nutri.ai" className="w-full h-full object-cover" />
                      </div>
                      <span className="font-serif text-2xl font-bold text-[#1A4D2E]">Nutri.ai</span>
                  </div>
