@@ -48,6 +48,7 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
 
   // Timer State for 15 min limit - Load from localStorage on mount
   const [secondsActive, setSecondsActive] = useState(() => loadTimeUsed());
+  const [currentDate, setCurrentDate] = useState(() => new Date().toISOString().split('T')[0]);
   const LIMIT_SECONDS = 15 * 60; // 15 Minutes
   const isLimitReached = secondsActive >= LIMIT_SECONDS;
 
@@ -142,6 +143,27 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
     }
     return () => clearInterval(interval);
   }, [isConnected, isLimitReached]);
+
+  // Check if date changed (midnight reset) - Reset timer if new day
+  useEffect(() => {
+    const checkDateChange = () => {
+      const today = new Date().toISOString().split('T')[0];
+      if (today !== currentDate) {
+        // New day detected - reset timer
+        setCurrentDate(today);
+        setSecondsActive(0);
+        // Clear old day's data is optional, but new day will use new key anyway
+      }
+    };
+    
+    // Check immediately
+    checkDateChange();
+    
+    // Check every minute to detect date change
+    const dateCheckInterval = setInterval(checkDateChange, 60000);
+    
+    return () => clearInterval(dateCheckInterval);
+  }, [currentDate]);
 
   // Save time when component unmounts or when limit is reached
   useEffect(() => {

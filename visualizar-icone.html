@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Preview do Ícone - Nutri.ai</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 800px;
+            width: 100%;
+        }
+        
+        h1 {
+            color: #1A4D2E;
+            margin-bottom: 10px;
+            font-size: 2em;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        
+        .preview-section {
+            margin: 30px 0;
+        }
+        
+        .preview-title {
+            font-size: 1.2em;
+            color: #1A4D2E;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+        
+        .icon-preview {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            padding: 30px;
+            background: #f5f5f5;
+            border-radius: 15px;
+        }
+        
+        .icon-item {
+            text-align: center;
+        }
+        
+        .icon-wrapper {
+            width: 120px;
+            height: 120px;
+            background: white;
+            border-radius: 26px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            margin-bottom: 10px;
+            position: relative;
+        }
+        
+        .icon-wrapper.round {
+            border-radius: 50%;
+        }
+        
+        .icon-wrapper.squircle {
+            border-radius: 30%;
+        }
+        
+        .icon-wrapper img {
+            width: 85%;
+            height: 85%;
+            object-fit: contain;
+        }
+        
+        .icon-label {
+            font-size: 0.9em;
+            color: #666;
+            font-weight: 500;
+        }
+        
+        .info-box {
+            background: #F0FDF4;
+            border-left: 4px solid #1A4D2E;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        
+        .info-box h3 {
+            color: #1A4D2E;
+            margin-bottom: 10px;
+        }
+        
+        .info-box ul {
+            margin-left: 20px;
+            color: #555;
+            line-height: 1.8;
+        }
+        
+        .specs {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .spec-item {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 8px;
+        }
+        
+        .spec-item strong {
+            color: #1A4D2E;
+            display: block;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🍎 Preview do Ícone - Nutri.ai</h1>
+        <p class="subtitle">Como o ícone aparecerá na tela inicial do Android</p>
+        
+        <div class="preview-section">
+            <div class="preview-title">Formatos de Exibição:</div>
+            <div class="icon-preview">
+                <div class="icon-item">
+                    <div class="icon-wrapper">
+                        <img src="android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" alt="Ícone Quadrado" id="iconImg">
+                    </div>
+                    <div class="icon-label">Quadrado (Padrão)</div>
+                </div>
+                
+                <div class="icon-item">
+                    <div class="icon-wrapper round">
+                        <img src="android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png" alt="Ícone Redondo">
+                    </div>
+                    <div class="icon-label">Redondo</div>
+                </div>
+                
+                <div class="icon-item">
+                    <div class="icon-wrapper squircle">
+                        <img src="android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" alt="Ícone Squircle">
+                    </div>
+                    <div class="icon-label">Squircle (Adaptativo)</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="info-box">
+            <h3>ℹ️ Área Segura Aplicada</h3>
+            <p>O ícone foi gerado com <strong>85% do tamanho total</strong>, garantindo que todo o conteúdo importante (chef, folhas, garfo/faca, coração) fique visível mesmo quando o Android aplicar diferentes máscaras de forma.</p>
+        </div>
+        
+        <div class="specs">
+            <div class="spec-item">
+                <strong>Tamanho Base:</strong>
+                512x512 pixels
+            </div>
+            <div class="spec-item">
+                <strong>Área Segura:</strong>
+                85% centralizado
+            </div>
+            <div class="spec-item">
+                <strong>Formatos Gerados:</strong>
+                Quadrado, Redondo, Adaptativo
+            </div>
+            <div class="spec-item">
+                <strong>Densidades:</strong>
+                mdpi, hdpi, xhdpi, xxhdpi, xxxhdpi
+            </div>
+        </div>
+        
+        <div class="info-box">
+            <h3>📱 O que verá no dispositivo:</h3>
+            <ul>
+                <li>O chef centralizado com seu chapéu branco</li>
+                <li>As folhas verdes ao redor</li>
+                <li>O garfo e faca estilizados</li>
+                <li>O coração laranja próximo ao chef</li>
+                <li>Tudo visível dentro da área segura, sem cortes</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>
