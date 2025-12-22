@@ -259,6 +259,27 @@ export const couponService = {
     return data as Coupon;
   },
 
+  // Buscar cupom por email do cliente (cakto_customer_id)
+  async getCouponByEmail(email: string): Promise<Coupon | null> {
+    if (!email) return null;
+
+    const { data, error } = await supabase
+      .from('coupons')
+      .select('*')
+      .eq('cakto_customer_id', email)
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Erro ao buscar cupom por email:', error);
+      return null;
+    }
+
+    return data as Coupon | null;
+  },
+
   // Incrementar uso do cupom (proteção contra over-usage)
   async incrementUsage(couponId: string) {
     const { data, error } = await supabase

@@ -1,6 +1,7 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { ArrowLeft, Ticket, ChevronRight, ChefHat, Check, Star, Eye, EyeOff } from 'lucide-react';
+import { couponService } from '../services/supabaseService';
 
 interface LandingPageProps {
   onGetStarted: () => void;
@@ -13,11 +14,44 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDe
   const [couponCode, setCouponCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
+  const [isLoadingCode, setIsLoadingCode] = useState(false);
   
   // Slider State
   const [sliderPosition, setSliderPosition] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const trackRef = useRef<HTMLDivElement>(null);
+
+  // Buscar código automaticamente quando há email ou código na URL
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const email = urlParams.get('email');
+    const code = urlParams.get('code');
+
+    // Se já tem código na URL, usar diretamente
+    if (code) {
+      setCouponCode(code);
+      setScreen('coupon');
+      return;
+    }
+
+    // Se tem email, buscar código no banco
+    if (email) {
+      setIsLoadingCode(true);
+      couponService.getCouponByEmail(email)
+        .then((coupon) => {
+          if (coupon) {
+            setCouponCode(coupon.code);
+            setScreen('coupon');
+          }
+        })
+        .catch((error) => {
+          console.error('Erro ao buscar código:', error);
+        })
+        .finally(() => {
+          setIsLoadingCode(false);
+        });
+    }
+  }, []);
 
   const handleCouponSubmit = (e: React.FormEvent) => {
       e.preventDefault();
@@ -214,21 +248,36 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDe
                                 <Ticket size={32} />
                             </div>
                             <h2 className="font-serif text-3xl mb-3 text-[#1A4D2E]">Código de Acesso</h2>
-                            <p className="text-gray-500 text-sm mb-8 px-4">Insira seu convite exclusivo para desbloquear o cadastro.</p>
+                            <p className="text-gray-500 text-sm mb-8 px-4">
+                                {isLoadingCode 
+                                    ? 'Buscando seu código...' 
+                                    : 'Insira seu convite exclusivo para desbloquear o cadastro.'}
+                            </p>
                             
-                            <form onSubmit={handleCouponSubmit} className="space-y-4">
-                                <input 
-                                    type="text" 
-                                    value={couponCode}
-                                    onChange={(e) => setCouponCode(e.target.value)}
-                                    placeholder="CÓDIGO" 
-                                    className="w-full bg-[#F5F1E8] border-2 border-transparent rounded-2xl p-4 outline-none focus:border-[#1A4D2E] focus:bg-white text-center font-bold text-xl tracking-widest uppercase transition-colors text-[#1A4D2E]" 
-                                    required
-                                />
-                                <button type="submit" className="w-full bg-[#1A4D2E] text-white py-5 rounded-2xl font-bold text-lg hover:scale-[1.02] transition-transform shadow-lg">
-                                    Validar
-                                </button>
-                            </form>
+                            {isLoadingCode ? (
+                                <div className="flex justify-center py-8">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1A4D2E]"></div>
+                                </div>
+                            ) : (
+                                <form onSubmit={handleCouponSubmit} className="space-y-4">
+                                    <input 
+                                        type="text" 
+                                        value={couponCode}
+                                        onChange={(e) => setCouponCode(e.target.value)}
+                                        placeholder="CÓDIGO" 
+                                        className="w-full bg-[#F5F1E8] border-2 border-transparent rounded-2xl p-4 outline-none focus:border-[#1A4D2E] focus:bg-white text-center font-bold text-xl tracking-widest uppercase transition-colors text-[#1A4D2E]" 
+                                        required
+                                    />
+                                    {couponCode && (
+                                        <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-sm text-green-700">
+                                            ✅ Código encontrado! Clique em "Validar" para continuar.
+                                        </div>
+                                    )}
+                                    <button type="submit" className="w-full bg-[#1A4D2E] text-white py-5 rounded-2xl font-bold text-lg hover:scale-[1.02] transition-transform shadow-lg">
+                                        Validar
+                                    </button>
+                                </form>
+                            )}
                         </div>
                     </div>
                 </div>
