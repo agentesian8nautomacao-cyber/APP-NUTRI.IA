@@ -133,6 +133,37 @@ async function validateWebhookSignature(
 }
 
 /**
+ * Busca usuário por email usando API REST do Supabase Auth
+ */
+async function getUserByEmail(email: string) {
+  try {
+    // Usar listUsers com filtro (se disponível) ou buscar todos e filtrar
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers();
+    
+    if (error) {
+      console.error('Erro ao listar usuários:', error);
+      return null;
+    }
+    
+    if (!data || !data.users) {
+      console.warn('Nenhum usuário encontrado na lista');
+      return null;
+    }
+    
+    const user = data.users.find(u => u.email?.toLowerCase() === email.toLowerCase());
+    
+    if (!user) {
+      console.log(`Usuário não encontrado para email: ${email}`);
+    }
+    
+    return user || null;
+  } catch (error) {
+    console.error('Erro ao buscar usuário por email:', error);
+    return null;
+  }
+}
+
+/**
  * Processa pagamento aprovado
  */
 async function processPaymentApproved(webhookData: CaktoPayload) {
@@ -153,16 +184,8 @@ async function processPaymentApproved(webhookData: CaktoPayload) {
       status,
     });
 
-    // Buscar ou criar usuário
-    const { data: userByEmail, error: getUserErr } =
-      await supabaseAdmin.auth.admin.getUserByEmail(customer.email);
-
-    if (getUserErr && getUserErr.message !== 'User not found') {
-      console.error('Erro ao buscar usuário:', getUserErr);
-      throw getUserErr;
-    }
-
-    let user = userByEmail?.user ?? null;
+    // Buscar usuário por email
+    let user = await getUserByEmail(customer.email);
 
     if (!user) {
       const { data: created, error: createErr } =
@@ -428,11 +451,10 @@ async function processRefund(webhookData: CaktoPayload) {
       amount,
     });
 
-    // Buscar usuário
-    const { data: userByEmail, error: getUserErr } =
-      await supabaseAdmin.auth.admin.getUserByEmail(customer.email);
+    // Buscar usuário por email
+    const user = await getUserByEmail(customer.email);
 
-    if (getUserErr || !userByEmail?.user) {
+    if (!user) {
       console.log('❌ Usuário não encontrado para reembolso:', customer.email);
       return {
         success: false,
@@ -440,8 +462,6 @@ async function processRefund(webhookData: CaktoPayload) {
         transaction_id: transactionId,
       };
     }
-
-    const user = userByEmail.user;
 
     // Cancelar assinatura (voltar para free)
     const { error: updateError } = await supabaseAdmin
@@ -504,11 +524,10 @@ async function processSubscriptionCancelled(webhookData: CaktoPayload) {
       transactionId,
     });
 
-    // Buscar usuário
-    const { data: userByEmail, error: getUserErr } =
-      await supabaseAdmin.auth.admin.getUserByEmail(customer.email);
+    // Buscar usuário por email
+    const user = await getUserByEmail(customer.email);
 
-    if (getUserErr || !userByEmail?.user) {
+    if (!user) {
       console.log('❌ Usuário não encontrado para cancelamento:', customer.email);
       return {
         success: false,
@@ -516,8 +535,6 @@ async function processSubscriptionCancelled(webhookData: CaktoPayload) {
         transaction_id: transactionId,
       };
     }
-
-    const user = userByEmail.user;
 
     // Cancelar assinatura (voltar para free)
     const { error: updateError } = await supabaseAdmin
