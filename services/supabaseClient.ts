@@ -3,7 +3,22 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+// Debug: Log environment variables (apenas em desenvolvimento)
+if (import.meta.env.DEV) {
+  console.log('🔍 Environment Variables Check:', {
+    hasUrl: !!supabaseUrl,
+    hasKey: !!supabaseAnonKey,
+    urlLength: supabaseUrl?.length || 0,
+    keyLength: supabaseAnonKey?.length || 0,
+  });
+}
+
 if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('❌ Missing Supabase environment variables:', {
+    VITE_SUPABASE_URL: supabaseUrl || 'MISSING',
+    VITE_SUPABASE_ANON_KEY: supabaseAnonKey ? '***present***' : 'MISSING',
+    allEnvKeys: Object.keys(import.meta.env).filter(key => key.includes('SUPABASE')),
+  });
   throw new Error('Missing Supabase environment variables. Please check your .env.local file.');
 }
 
