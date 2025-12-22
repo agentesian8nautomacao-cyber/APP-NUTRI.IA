@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { ArrowLeft, Ticket, ChevronRight, ChefHat, Check, Star } from 'lucide-react';
+import { ArrowLeft, Ticket, ChevronRight, ChefHat, Check, Star, Eye, EyeOff } from 'lucide-react';
 
 interface LandingPageProps {
   onGetStarted: () => void;
@@ -11,6 +11,8 @@ interface LandingPageProps {
 const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDevSkip }) => {
   const [screen, setScreen] = useState<'home' | 'login' | 'coupon' | 'register'>('home');
   const [couponCode, setCouponCode] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
   
   // Slider State
   const [sliderPosition, setSliderPosition] = useState(0);
@@ -168,7 +170,21 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDe
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold uppercase text-gray-400 mb-2 pl-2">Senha</label>
-                                    <input type="password" placeholder="••••••••" className="w-full bg-[#F5F1E8] border border-transparent rounded-2xl p-4 outline-none focus:border-[#1A4D2E] focus:bg-white transition-colors text-[#1A4D2E]" />
+                                    <div className="relative">
+                                        <input 
+                                            type={showPassword ? "text" : "password"} 
+                                            placeholder="••••••••" 
+                                            className="w-full bg-[#F5F1E8] border border-transparent rounded-2xl p-4 pr-12 outline-none focus:border-[#1A4D2E] focus:bg-white transition-colors text-[#1A4D2E]" 
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPassword(!showPassword)}
+                                            className="absolute right-4 top-1/2 -translate-y-1/2 text-[#1A4D2E]/60 hover:text-[#1A4D2E] transition-colors"
+                                            aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                                        >
+                                            {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                                        </button>
+                                    </div>
                                 </div>
                                 
                                 <button type="submit" className="w-full bg-[#1A4D2E] text-white py-5 rounded-2xl font-bold text-lg mt-6 hover:scale-[1.02] transition-transform shadow-lg shadow-[#1A4D2E]/20">
@@ -236,7 +252,21 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDe
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold uppercase text-gray-400 mb-2 pl-2">Senha</label>
-                                    <input type="password" className="w-full bg-[#F5F1E8] border border-transparent rounded-2xl p-4 outline-none focus:border-[#1A4D2E] focus:bg-white text-[#1A4D2E]" required />
+                                    <div className="relative">
+                                        <input 
+                                            type={showRegisterPassword ? "text" : "password"} 
+                                            className="w-full bg-[#F5F1E8] border border-transparent rounded-2xl p-4 pr-12 outline-none focus:border-[#1A4D2E] focus:bg-white text-[#1A4D2E]" 
+                                            required 
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowRegisterPassword(!showRegisterPassword)}
+                                            className="absolute right-4 top-1/2 -translate-y-1/2 text-[#1A4D2E]/60 hover:text-[#1A4D2E] transition-colors"
+                                            aria-label={showRegisterPassword ? "Ocultar senha" : "Mostrar senha"}
+                                        >
+                                            {showRegisterPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                                        </button>
+                                    </div>
                                 </div>
                                 <button type="submit" className="w-full bg-[#1A4D2E] text-white py-5 rounded-2xl font-bold text-lg mt-4 hover:scale-[1.02] transition-transform">
                                     Cadastrar

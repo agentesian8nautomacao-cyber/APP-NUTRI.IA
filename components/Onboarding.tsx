@@ -193,16 +193,64 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
           </div>
         );
       case 8: // Basic Details
+        const commonRestrictions = [
+          'Sem glúten',
+          'Sem lactose',
+          'Vegano',
+          'Vegetariano',
+          'Sem açúcar',
+          'Low carb',
+          'Keto',
+          'Sem frutos do mar',
+          'Halal',
+          'Kosher'
+        ];
+        
+        const selectedRestrictions = profile.restrictions 
+          ? profile.restrictions.split(',').map(r => r.trim()).filter(r => r)
+          : [];
+        
+        const toggleRestriction = (restriction: string) => {
+          const current = selectedRestrictions;
+          const updated = current.includes(restriction)
+            ? current.filter(r => r !== restriction)
+            : [...current, restriction];
+          handleChange('restrictions', updated.join(', '));
+        };
+        
         return (
            <div className="space-y-6 animate-in slide-in-from-right duration-500">
             <h2 className="text-4xl font-serif text-[#1A4D2E]">Preferências</h2>
             <div className="mt-4">
-               <label className="block text-sm font-medium text-[#4F6F52] mb-2 ml-2">Restrições Alimentares</label>
+               <label className="block text-sm font-medium text-[#4F6F52] mb-3 ml-2">Restrições Alimentares</label>
+               <div className="flex flex-wrap gap-2 mb-4">
+                 {commonRestrictions.map((restriction) => {
+                   const isSelected = selectedRestrictions.includes(restriction);
+                   return (
+                     <button
+                       key={restriction}
+                       type="button"
+                       onClick={() => toggleRestriction(restriction)}
+                       className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                         isSelected
+                           ? 'bg-[#1A4D2E] text-[#F5F1E8] border-2 border-[#1A4D2E]'
+                           : 'bg-white text-[#1A4D2E] border-2 border-[#1A4D2E]/20 hover:border-[#1A4D2E]/40'
+                       }`}
+                     >
+                       {restriction}
+                     </button>
+                   );
+                 })}
+               </div>
                <textarea 
-                  value={profile.restrictions}
-                  onChange={(e) => handleChange('restrictions', e.target.value)}
-                  placeholder="ex: Sem glúten, Vegano..."
-                  className="w-full bg-white border-2 border-transparent rounded-[2rem] p-6 text-[#1A4D2E] placeholder:text-[#1A4D2E]/40 focus:border-[#1A4D2E] focus:outline-none h-24 resize-none text-lg"
+                  value={selectedRestrictions.filter(r => !commonRestrictions.includes(r)).join(', ')}
+                  onChange={(e) => {
+                    const otherRestrictions = e.target.value.split(',').map(r => r.trim()).filter(r => r);
+                    const allRestrictions = [...selectedRestrictions.filter(r => commonRestrictions.includes(r)), ...otherRestrictions];
+                    handleChange('restrictions', allRestrictions.join(', '));
+                  }}
+                  placeholder="Outras restrições (ex: alergia a amendoim, intolerância à frutose...)"
+                  className="w-full bg-white border-2 border-transparent rounded-[2rem] p-4 text-[#1A4D2E] placeholder:text-[#1A4D2E]/40 focus:border-[#1A4D2E] focus:outline-none h-20 resize-none text-sm"
                />
             </div>
             <div className="mt-6">

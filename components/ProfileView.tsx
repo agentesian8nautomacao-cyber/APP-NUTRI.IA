@@ -186,15 +186,92 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => 
             <h3 className="font-serif text-xl text-[#1A4D2E] mb-4">Preferências & Restrições</h3>
             <div className="space-y-4">
                 <div>
-                    <label className="text-xs font-bold text-[#4F6F52] uppercase mb-1 block">Restrições</label>
+                    <label className="text-xs font-bold text-[#4F6F52] uppercase mb-2 block">Restrições Alimentares</label>
                     {isEditing ? (
-                        <textarea 
-                            value={formData.restrictions} 
-                            onChange={e => handleChange('restrictions', e.target.value)}
-                            className="w-full bg-[#F5F1E8] p-3 rounded-xl text-[#1A4D2E] outline-none border border-[#1A4D2E]/10"
-                            rows={2}
-                        />
-                     ) : <p className="text-[#1A4D2E]">{formData.restrictions || "Nenhuma"}</p>}
+                        <>
+                            {(() => {
+                                const commonRestrictions = [
+                                    'Sem glúten',
+                                    'Sem lactose',
+                                    'Vegano',
+                                    'Vegetariano',
+                                    'Sem açúcar',
+                                    'Low carb',
+                                    'Keto',
+                                    'Sem frutos do mar',
+                                    'Halal',
+                                    'Kosher'
+                                ];
+                                
+                                const currentRestrictions = formData.restrictions 
+                                    ? formData.restrictions.split(',').map(r => r.trim()).filter(r => r)
+                                    : [];
+                                
+                                const selectedRestrictions = currentRestrictions.filter(r => commonRestrictions.includes(r));
+                                const otherRestrictions = currentRestrictions.filter(r => !commonRestrictions.includes(r));
+                                
+                                const toggleRestriction = (restriction: string) => {
+                                    const updated = selectedRestrictions.includes(restriction)
+                                        ? selectedRestrictions.filter(r => r !== restriction)
+                                        : [...selectedRestrictions, restriction];
+                                    const allRestrictions = [...updated, ...otherRestrictions];
+                                    handleChange('restrictions', allRestrictions.join(', '));
+                                };
+                                
+                                return (
+                                    <>
+                                        <div className="flex flex-wrap gap-2 mb-3">
+                                            {commonRestrictions.map((restriction) => {
+                                                const isSelected = selectedRestrictions.includes(restriction);
+                                                return (
+                                                    <button
+                                                        key={restriction}
+                                                        type="button"
+                                                        onClick={() => toggleRestriction(restriction)}
+                                                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                                                            isSelected
+                                                                ? 'bg-[#1A4D2E] text-[#F5F1E8] border-2 border-[#1A4D2E]'
+                                                                : 'bg-[#F5F1E8] text-[#1A4D2E] border-2 border-[#1A4D2E]/20 hover:border-[#1A4D2E]/40'
+                                                        }`}
+                                                    >
+                                                        {restriction}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                        <textarea 
+                                            value={otherRestrictions.join(', ')}
+                                            onChange={e => {
+                                                const other = e.target.value.split(',').map(r => r.trim()).filter(r => r);
+                                                const allRestrictions = [...selectedRestrictions, ...other];
+                                                handleChange('restrictions', allRestrictions.join(', '));
+                                            }}
+                                            placeholder="Outras restrições (ex: alergia a amendoim, intolerância à frutose...)"
+                                            className="w-full bg-[#F5F1E8] p-3 rounded-xl text-[#1A4D2E] outline-none border border-[#1A4D2E]/10 text-sm"
+                                            rows={2}
+                                        />
+                                    </>
+                                );
+                            })()}
+                        </>
+                     ) : (
+                        <div>
+                            {formData.restrictions ? (
+                                <div className="flex flex-wrap gap-2">
+                                    {formData.restrictions.split(',').map((restriction, idx) => (
+                                        <span 
+                                            key={idx}
+                                            className="px-3 py-1 bg-[#F5F1E8] text-[#1A4D2E] rounded-full text-sm font-medium"
+                                        >
+                                            {restriction.trim()}
+                                        </span>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-[#1A4D2E]">Nenhuma</p>
+                            )}
+                        </div>
+                     )}
                 </div>
                 <div>
                     <label className="text-xs font-bold text-[#4F6F52] uppercase mb-1 block">Preferências</label>

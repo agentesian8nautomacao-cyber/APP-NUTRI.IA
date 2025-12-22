@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality, Blob, Type, FunctionDeclaration } from "@google/genai";
 import { X, Mic, MicOff, PhoneOff, Activity, CheckCircle2, Lock, Home, BookOpen, User, Mic as MicIcon, ArrowDown, Zap, Clock, Infinity, Check } from 'lucide-react';
 import { UserProfile, DailyPlan, LogItem, MealItem } from '../types';
+import { checkVoiceAccess, consumeVoiceTime } from '../services/voiceAccessService';
 
 interface LiveConversationProps {
   onClose: () => void;
@@ -16,41 +17,27 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
   const [isConnected, setIsConnected] = useState(false);
   const [isMicOn, setIsMicOn] = useState(true);
   const [volume, setVolume] = useState(0);
-  const [status, setStatus] = useState("Conectando...");
+  const [status, setStatus] = useState("Verificando acesso...");
   const [loggedItem, setLoggedItem] = useState<string | null>(null);
   
-  // Helper functions for localStorage persistence
-  const getStorageKey = () => {
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-    return `nutriai_voice_time_used_${today}`;
-  };
-
-  const loadTimeUsed = (): number => {
-    try {
-      const stored = localStorage.getItem(getStorageKey());
-      if (stored) {
-        const parsed = parseInt(stored, 10);
-        return isNaN(parsed) ? 0 : Math.max(0, parsed);
-      }
-    } catch (e) {
-      console.error('Error loading voice time:', e);
-    }
-    return 0;
-  };
-
-  const saveTimeUsed = (seconds: number) => {
-    try {
-      localStorage.setItem(getStorageKey(), seconds.toString());
-    } catch (e) {
-      console.error('Error saving voice time:', e);
-    }
-  };
-
-  // Timer State for 15 min limit - Load from localStorage on mount
-  const [secondsActive, setSecondsActive] = useState(() => loadTimeUsed());
-  const [currentDate, setCurrentDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const LIMIT_SECONDS = 15 * 60; // 15 Minutes
-  const isLimitReached = secondsActive >= LIMIT_SECONDS;
+  // Estado para saldos do backend
+  const [remainingMinutes, setRemainingMinutes] = useState({
+    free: 15,
+    boost: 0,
+    reserve: 0,
+    is_vip: false,
+  });
+  
+  const [hasAccess, setHasAccess] = useState<boolean | null>(null);
+  const [accessError, setAccessError] = useState<string | null>(null);
+  const [secondsInCurrentSession, setSecondsInCurrentSession] = useState(0);
+  
+  // Calcular total de minutos disponíveis
+  const totalAvailableMinutes = remainingMinutes.is_vip 
+    ? Infinity 
+    : remainingMinutes.free + remainingMinutes.boost + remainingMinutes.reserve;
+  
+  const isLimitReached = !remainingMinutes.is_vip && totalAvailableMinutes <= 0;
 
   // Audio Contexts
   const inputAudioContextRef = useRef<AudioContext | null>(null);
@@ -128,62 +115,99 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
     return buffer;
   };
 
-  // Timer Effect - Save to localStorage every second when active
+  // Carregar saldos iniciais do backend
   useEffect(() => {
-    let interval: any;
-    if (isConnected && !isLimitReached) {
-        interval = setInterval(() => {
-            setSecondsActive(prev => {
-              const newValue = prev + 1;
-              // Save to localStorage every second
-              saveTimeUsed(newValue);
-              return newValue;
-            });
-        }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [isConnected, isLimitReached]);
-
-  // Check if date changed (midnight reset) - Reset timer if new day
-  useEffect(() => {
-    const checkDateChange = () => {
-      const today = new Date().toISOString().split('T')[0];
-      if (today !== currentDate) {
-        // New day detected - reset timer
-        setCurrentDate(today);
-        setSecondsActive(0);
-        // Clear old day's data is optional, but new day will use new key anyway
+    const loadInitialAccess = async () => {
+      try {
+        const access = await checkVoiceAccess();
+        setHasAccess(access.hasAccess);
+        if (access.remaining) {
+          setRemainingMinutes(access.remaining);
+        }
+        if (access.reason && !access.hasAccess) {
+          setAccessError(access.reason);
+        }
+      } catch (error) {
+        console.error('Error loading voice access:', error);
+        setAccessError('ERROR');
+        setHasAccess(false);
       }
     };
     
-    // Check immediately
-    checkDateChange();
-    
-    // Check every minute to detect date change
-    const dateCheckInterval = setInterval(checkDateChange, 60000);
-    
-    return () => clearInterval(dateCheckInterval);
-  }, [currentDate]);
+    loadInitialAccess();
+  }, []);
 
-  // Save time when component unmounts or when limit is reached
+  // Consumir tempo do backend a cada minuto quando conectado
   useEffect(() => {
+    let secondsInterval: any;
+    
+    if (isConnected && !isLimitReached && !remainingMinutes.is_vip) {
+      let accumulatedSeconds = 0;
+      
+      // Timer local para exibição e consumo (a cada segundo)
+      secondsInterval = setInterval(() => {
+        setSecondsInCurrentSession(prev => prev + 1);
+        accumulatedSeconds += 1;
+        
+        // Consumir do backend a cada minuto (60 segundos)
+        if (accumulatedSeconds >= 60) {
+          accumulatedSeconds = 0;
+          consumeVoiceTime(60).then(result => {
+            if (!result.hasAccess) {
+              // Limite atingido, desconectar
+              setIsConnected(false);
+              setStatus('Limite atingido');
+              if (result.remaining) {
+                setRemainingMinutes(result.remaining);
+              }
+            } else if (result.remaining) {
+              // Atualizar saldos
+              setRemainingMinutes(result.remaining);
+            }
+          }).catch(error => {
+            console.error('Error consuming voice time:', error);
+          });
+        }
+      }, 1000);
+    }
+    
     return () => {
-      // Save on unmount
-      saveTimeUsed(secondsActive);
+      if (secondsInterval) clearInterval(secondsInterval);
     };
-  }, [secondsActive]);
+  }, [isConnected, isLimitReached, remainingMinutes.is_vip]);
 
   // Init Session
   useEffect(() => {
+    // Se ainda não verificou acesso, aguardar
+    if (hasAccess === null) {
+      return;
+    }
+    
     // If limit reached, do not connect/disconnect existing
-    if (isLimitReached) {
+    if (isLimitReached || !hasAccess) {
         // Stop audio streams if active
         if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
+        setStatus(accessError === 'NO_MINUTES_AVAILABLE' ? 'Sem minutos disponíveis' : 'Acesso negado');
         return;
     }
 
     const initSession = async () => {
       try {
+        // Verificar acesso uma última vez antes de conectar
+        const accessCheck = await checkVoiceAccess();
+        if (!accessCheck.hasAccess) {
+          setHasAccess(false);
+          setAccessError(accessCheck.reason || 'NO_ACCESS');
+          setStatus('Sem acesso');
+          return;
+        }
+        
+        if (accessCheck.remaining) {
+          setRemainingMinutes(accessCheck.remaining);
+        }
+        
+        setStatus("Conectando...");
+        
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
         // Sanitize function for JSON stringify
@@ -361,7 +385,7 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
       if (scriptProcessorRef.current) scriptProcessorRef.current.disconnect();
       if (sourceRef.current) sourceRef.current.disconnect();
     };
-  }, [userProfile, dietPlan, dailyLog, isLimitReached]);
+  }, [userProfile, dietPlan, dailyLog, isLimitReached, hasAccess, accessError]);
 
   const toggleMic = () => {
     setIsMicOn(!isMicOn);
@@ -383,7 +407,9 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
             <div className="flex-1 flex flex-col items-center justify-center text-center max-w-sm w-full">
                 
                 <h2 className="text-[#1E3A8A] text-3xl font-bold mb-8 leading-tight">
-                    Seus 15 minutos acabaram...
+                    {accessError === 'NO_MINUTES_AVAILABLE' 
+                      ? 'Seus minutos acabaram...' 
+                      : 'Acesso não disponível'}
                 </h2>
 
                 {/* Central Graphic */}
@@ -482,7 +508,17 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
           <h2 className="mt-8 text-3xl font-serif text-[#F5F1E8]">Nutri.ai</h2>
           <p className="text-[#F5F1E8]/60 mt-2">Assistente Pessoal</p>
           <p className="text-[#F5F1E8]/30 text-xs mt-4">
-            Tempo restante: {Math.max(0, Math.floor((LIMIT_SECONDS - secondsActive)/60))} min {Math.max(0, (LIMIT_SECONDS - secondsActive) % 60)}s
+            {remainingMinutes.is_vip ? (
+              <span className="flex items-center gap-1 justify-center">
+                <Infinity size={14} /> Ilimitado
+              </span>
+            ) : (
+              <>
+                Tempo restante: {totalAvailableMinutes > 0 ? `${totalAvailableMinutes} min` : '0 min'}
+                {remainingMinutes.boost > 0 && <span className="ml-2">⚡ {remainingMinutes.boost}</span>}
+                {remainingMinutes.reserve > 0 && <span className="ml-2">💾 {remainingMinutes.reserve}</span>}
+              </>
+            )}
           </p>
        </div>
 

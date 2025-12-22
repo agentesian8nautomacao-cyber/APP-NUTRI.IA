@@ -7,9 +7,10 @@ interface DietPlanViewProps {
   plan: DailyPlan;
   userProfile?: UserProfile | null;
   onRegenerate?: (instructions: string, attachment?: { data: string, mimeType: string }, usePantry?: boolean) => Promise<void>;
+  isNewUser?: boolean; // Indica se é um novo usuário (sem plano existente)
 }
 
-const DietPlanView: React.FC<DietPlanViewProps> = ({ plan, userProfile, onRegenerate }) => {
+const DietPlanView: React.FC<DietPlanViewProps> = ({ plan, userProfile, onRegenerate, isNewUser = false }) => {
   const [activeTab, setActiveTab] = useState<'menu' | 'strategy' | 'shopping' | 'tips'>('menu');
   const [isEditing, setIsEditing] = useState(false);
   const [customInstructions, setCustomInstructions] = useState('');
@@ -186,13 +187,16 @@ const DietPlanView: React.FC<DietPlanViewProps> = ({ plan, userProfile, onRegene
             </div>
             <h2 className="text-4xl font-serif text-[#1A4D2E] mb-2">Seu Plano</h2>
         </div>
-        <button 
-            onClick={() => setIsEditing(true)}
-            className="p-3 bg-white border border-[#1A4D2E]/10 text-[#1A4D2E] rounded-full shadow-sm hover:bg-[#1A4D2E] hover:text-white transition-all flex items-center gap-2"
-        >
-            <Edit2 size={18} />
-            <span className="text-xs font-bold hidden sm:inline">Personalizar</span>
-        </button>
+        {/* Mostrar botão apenas para novos usuários */}
+        {isNewUser && (
+          <button 
+              onClick={() => setIsEditing(true)}
+              className="p-3 bg-white border border-[#1A4D2E]/10 text-[#1A4D2E] rounded-full shadow-sm hover:bg-[#1A4D2E] hover:text-white transition-all flex items-center gap-2"
+          >
+              <Edit2 size={18} />
+              <span className="text-xs font-bold hidden sm:inline">Personalizar</span>
+          </button>
+        )}
       </div>
 
       {/* Macro Summary Banner */}

@@ -4,6 +4,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const CAKTO_WEBHOOK_SECRET = Deno.env.get('CAKTO_WEBHOOK_SECRET')!;
+const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
+const EMAIL_FROM = Deno.env.get('EMAIL_FROM') || 'Nutri.ai <noreply@nutri.ai>';
 
 const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
   auth: {
@@ -164,6 +166,326 @@ async function getUserByEmail(email: string) {
 }
 
 /**
+ * Verifica se um plano é B2B (requer código de convite)
+ */
+function isB2BPlan(planType: PlanType): boolean {
+  return [
+    'academy_starter',
+    'academy_growth',
+    'academy_pro',
+    'personal_team',
+  ].includes(planType);
+}
+
+/**
+ * Gera um código único de convite
+ * Formato: PREFIXO-XXXX-XXXX (ex: ACADEMIA-STARTER-A1B2-C3D4)
+ */
+function generateInviteCode(planType: PlanType, customerEmail: string): string {
+  // Prefixo baseado no tipo de plano
+  const prefixMap: Record<string, string> = {
+    academy_starter: 'ACADEMIA-STARTER',
+    academy_growth: 'ACADEMIA-GROWTH',
+    academy_pro: 'ACADEMIA-PRO',
+    personal_team: 'PERSONAL-TEAM',
+  };
+
+  const prefix = prefixMap[planType] || 'INVITE';
+  
+  // Gerar parte aleatória usando hash do email + timestamp
+  const timestamp = Date.now().toString(36).toUpperCase();
+  const emailHash = customerEmail
+    .split('@')[0]
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+    .substring(0, 4);
+  
+  // Parte aleatória adicional
+  const randomPart = Math.random().toString(36).substring(2, 6).toUpperCase();
+  
+  // Combinar: PREFIXO-EMAILHASH-RANDOM
+  const code = `${prefix}-${emailHash}-${randomPart}`;
+  
+  return code;
+}
+
+/**
+ * Gera template HTML para email com código de convite
+ */
+function generateInviteEmailTemplate(
+  customerName: string,
+  inviteCode: string,
+  planType: PlanType
+): string {
+  const planNames: Record<string, string> = {
+    academy_starter: 'Academia Starter',
+    academy_growth: 'Academia Growth',
+    academy_pro: 'Academia Pro',
+    personal_team: 'Personal Team',
+  };
+
+  const planName = planNames[planType] || planType;
+  
+  return `
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Seu Código de Convite - Nutri.ai</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #F5F1E8;">
+  <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #F5F1E8; padding: 20px;">
+    <tr>
+      <td align="center" style="padding: 40px 20px;">
+        <table role="presentation" style="max-width: 600px; width: 100%; border-collapse: collapse; background-color: #FFFFFF; border-radius: 24px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+          <!-- Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #1A4D2E 0%, #4F6F52 100%); padding: 40px 30px; text-align: center;">
+              <h1 style="margin: 0; color: #F5F1E8; font-size: 32px; font-weight: 600;">Nutri.ai</h1>
+              <p style="margin: 10px 0 0 0; color: #F5F1E8; font-size: 16px; opacity: 0.9;">Nutrição Consciente</p>
+            </td>
+          </tr>
+          
+          <!-- Content -->
+          <tr>
+            <td style="padding: 40px 30px;">
+              <h2 style="margin: 0 0 20px 0; color: #1A4D2E; font-size: 24px; font-weight: 600;">Olá, ${customerName}!</h2>
+              
+              <p style="margin: 0 0 20px 0; color: #4F6F52; font-size: 16px; line-height: 1.6;">
+                Parabéns! Seu pagamento do plano <strong>${planName}</strong> foi aprovado com sucesso.
+              </p>
+              
+              <p style="margin: 0 0 30px 0; color: #4F6F52; font-size: 16px; line-height: 1.6;">
+                Seu código de convite exclusivo foi gerado e está pronto para ser compartilhado com seus alunos ou clientes:
+              </p>
+              
+              <!-- Code Box -->
+              <div style="background: linear-gradient(135deg, #1A4D2E 0%, #4F6F52 100%); border-radius: 16px; padding: 30px; text-align: center; margin: 30px 0;">
+                <p style="margin: 0 0 10px 0; color: #F5F1E8; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Código de Convite</p>
+                <p style="margin: 0; color: #F5F1E8; font-size: 32px; font-weight: 700; letter-spacing: 2px; font-family: 'Courier New', monospace;">${inviteCode}</p>
+              </div>
+              
+              <!-- Instructions -->
+              <div style="background-color: #F5F1E8; border-radius: 12px; padding: 20px; margin: 30px 0;">
+                <h3 style="margin: 0 0 15px 0; color: #1A4D2E; font-size: 18px; font-weight: 600;">Como usar seu código:</h3>
+                <ol style="margin: 0; padding-left: 20px; color: #4F6F52; font-size: 14px; line-height: 1.8;">
+                  <li>Compartilhe este código com seus alunos ou clientes</li>
+                  <li>Eles devem acessar o app Nutri.ai</li>
+                  <li>Na tela de login, clicar em "Tenho um convite"</li>
+                  <li>Inserir o código acima</li>
+                  <li>Completar o cadastro e começar a usar!</li>
+                </ol>
+              </div>
+              
+              <p style="margin: 30px 0 0 0; color: #4F6F52; font-size: 14px; line-height: 1.6;">
+                <strong>Importante:</strong> Este código é exclusivo e vinculado à sua conta. Mantenha-o seguro e compartilhe apenas com pessoas autorizadas.
+              </p>
+            </td>
+          </tr>
+          
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #F5F1E8; padding: 30px; text-align: center; border-top: 1px solid #E8E8E8;">
+              <p style="margin: 0 0 10px 0; color: #4F6F52; font-size: 12px;">
+                Este é um email automático. Por favor, não responda.
+              </p>
+              <p style="margin: 0; color: #4F6F52; font-size: 12px;">
+                © ${new Date().getFullYear()} Nutri.ai - Todos os direitos reservados
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
+}
+
+/**
+ * Envia email com código de convite para o cliente
+ */
+async function sendInviteCodeEmail(
+  customerEmail: string,
+  customerName: string,
+  inviteCode: string,
+  planType: PlanType
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    // Verificar se Resend está configurado
+    if (!RESEND_API_KEY) {
+      console.warn('⚠️ RESEND_API_KEY não configurada - email não será enviado');
+      return { success: false, error: 'RESEND_API_KEY não configurada' };
+    }
+
+    const emailHtml = generateInviteEmailTemplate(customerName, inviteCode, planType);
+    const planNames: Record<string, string> = {
+      academy_starter: 'Academia Starter',
+      academy_growth: 'Academia Growth',
+      academy_pro: 'Academia Pro',
+      personal_team: 'Personal Team',
+    };
+    const planName = planNames[planType] || planType;
+
+    // Enviar email via Resend API
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${RESEND_API_KEY}`,
+      },
+      body: JSON.stringify({
+        from: EMAIL_FROM,
+        to: [customerEmail],
+        subject: `🎫 Seu Código de Convite - Nutri.ai ${planName}`,
+        html: emailHtml,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('❌ Erro ao enviar email:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorData,
+      });
+      return {
+        success: false,
+        error: `Erro ao enviar email: ${response.status} ${response.statusText}`,
+      };
+    }
+
+    const result = await response.json();
+    console.log('✅ Email enviado com sucesso:', {
+      email: customerEmail,
+      message_id: result.id,
+      invite_code: inviteCode,
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('❌ Erro ao enviar email:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Erro desconhecido',
+    };
+  }
+}
+
+/**
+ * Cria um cupom de convite automaticamente para planos B2B
+ */
+async function createB2BCoupon(
+  planType: PlanType,
+  caktoCustomerId: string,
+  customerEmail: string
+): Promise<{ success: boolean; code?: string; error?: string }> {
+  try {
+    // Verificar se já existe um cupom para este cakto_customer_id
+    const { data: existingCoupon, error: checkError } = await supabaseAdmin
+      .from('coupons')
+      .select('code, id')
+      .eq('cakto_customer_id', caktoCustomerId)
+      .eq('plan_linked', planType)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (checkError && checkError.code !== 'PGRST116') {
+      console.error('Erro ao verificar cupom existente:', checkError);
+      return { success: false, error: checkError.message };
+    }
+
+    // Se já existe cupom ativo, retornar o código existente
+    if (existingCoupon) {
+      console.log('✅ Cupom já existe para este cliente:', existingCoupon.code);
+      return { success: true, code: existingCoupon.code };
+    }
+
+    // Definir limites baseados no tipo de plano
+    const limitsMap: Record<string, { maxUses: number; maxAccounts: number }> = {
+      academy_starter: { maxUses: 50, maxAccounts: 50 },
+      academy_growth: { maxUses: 100, maxAccounts: 100 },
+      academy_pro: { maxUses: 200, maxAccounts: 200 },
+      personal_team: { maxUses: 30, maxAccounts: 30 },
+    };
+
+    const limits = limitsMap[planType] || { maxUses: 50, maxAccounts: 50 };
+
+    // Gerar código único
+    let code = generateInviteCode(planType, customerEmail);
+    let attempts = 0;
+    const maxAttempts = 10;
+
+    // Garantir que o código seja único (tentar até 10 vezes)
+    while (attempts < maxAttempts) {
+      const { data: existing, error: checkCodeError } = await supabaseAdmin
+        .from('coupons')
+        .select('code')
+        .eq('code', code)
+        .maybeSingle();
+
+      if (checkCodeError && checkCodeError.code !== 'PGRST116') {
+        console.error('Erro ao verificar unicidade do código:', checkCodeError);
+        break;
+      }
+
+      if (!existing) {
+        // Código único encontrado
+        break;
+      }
+
+      // Código já existe, gerar novo
+      code = generateInviteCode(planType, customerEmail + attempts.toString());
+      attempts++;
+    }
+
+    if (attempts >= maxAttempts) {
+      console.error('❌ Não foi possível gerar código único após várias tentativas');
+      return { success: false, error: 'Erro ao gerar código único' };
+    }
+
+    // Criar cupom no banco
+    const { data: newCoupon, error: insertError } = await supabaseAdmin
+      .from('coupons')
+      .insert({
+        code: code,
+        plan_linked: planType,
+        max_uses: limits.maxUses,
+        current_uses: 0,
+        cakto_customer_id: caktoCustomerId,
+        max_linked_accounts: limits.maxAccounts,
+        linked_accounts_count: 0,
+        is_active: true,
+      })
+      .select('code')
+      .single();
+
+    if (insertError) {
+      console.error('❌ Erro ao criar cupom:', insertError);
+      return { success: false, error: insertError.message };
+    }
+
+    console.log('✅ Cupom B2B criado automaticamente:', {
+      code: newCoupon.code,
+      plan_type: planType,
+      cakto_customer_id: caktoCustomerId,
+      max_uses: limits.maxUses,
+      max_accounts: limits.maxAccounts,
+    });
+
+    return { success: true, code: newCoupon.code };
+  } catch (error) {
+    console.error('❌ Erro ao criar cupom B2B:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Erro desconhecido',
+    };
+  }
+}
+
+/**
  * Processa pagamento aprovado
  */
 async function processPaymentApproved(webhookData: CaktoPayload) {
@@ -282,6 +604,46 @@ async function processPaymentApproved(webhookData: CaktoPayload) {
       throw upsertErr;
     }
 
+    // Gerar código de convite automaticamente para planos B2B
+    let inviteCode: string | undefined;
+    if (isB2BPlan(plan.plan_type)) {
+      console.log('🎫 Plano B2B detectado, gerando código de convite...', {
+        plan_type: plan.plan_type,
+        cakto_customer_id: customer.email,
+      });
+
+      const couponResult = await createB2BCoupon(
+        plan.plan_type,
+        customer.email, // Usar email como cakto_customer_id
+        customer.email
+      );
+
+      if (couponResult.success && couponResult.code) {
+        inviteCode = couponResult.code;
+        console.log('✅ Código de convite gerado com sucesso:', inviteCode);
+
+        // Enviar email com o código de convite
+        const emailResult = await sendInviteCodeEmail(
+          customer.email,
+          customer.name || customer.email.split('@')[0],
+          inviteCode,
+          plan.plan_type
+        );
+
+        if (emailResult.success) {
+          console.log('✅ Email com código de convite enviado com sucesso para:', customer.email);
+        } else {
+          console.error('⚠️ Erro ao enviar email com código de convite:', emailResult.error);
+          // Não falhar o processamento se apenas o envio de email falhar
+          // O código foi gerado e está disponível no banco de dados
+        }
+      } else {
+        console.error('⚠️ Erro ao gerar código de convite:', couponResult.error);
+        // Não falhar o processamento se apenas a geração do código falhar
+        // O cupom pode ser criado manualmente depois
+      }
+    }
+
     // Salvar histórico de pagamento
     const { error: historyError } = await supabaseAdmin
       .from('payment_history')
@@ -303,6 +665,7 @@ async function processPaymentApproved(webhookData: CaktoPayload) {
       email: customer.email,
       transaction_id: transactionId,
       plan_type: plan.plan_type,
+      invite_code: inviteCode || 'N/A (não B2B)',
     });
 
     return {
@@ -312,6 +675,7 @@ async function processPaymentApproved(webhookData: CaktoPayload) {
       amount: amount,
       user_id: user.id,
       plan_type: plan.plan_type,
+      invite_code: inviteCode, // Incluir código gerado na resposta
     };
   } catch (error) {
     console.error('❌ Erro ao processar pagamento aprovado:', error);

@@ -124,6 +124,7 @@ const App: React.FC = () => {
   const [dietPlan, setDietPlan] = useState<DailyPlan | null>(null);
   const [dailyLog, setDailyLog] = useState<LogItem[]>([]);
   const [scanHistory, setScanHistory] = useState<ScanHistoryItem[]>([]);
+  const [isNewUser, setIsNewUser] = useState(false); // Rastreia se é novo usuário
   
   const [wellness, setWellness] = useState<WellnessState>({
     mood: null,
@@ -169,6 +170,7 @@ const App: React.FC = () => {
 
   const handleOnboardingComplete = async (profile: UserProfile) => {
     setUserProfile(profile);
+    setIsNewUser(true); // Marca como novo usuário após onboarding
     setView('generating');
     setIsGenerating(true);
     try {
@@ -391,6 +393,7 @@ const App: React.FC = () => {
                     plan={dietPlan} 
                     userProfile={userProfile}
                     onRegenerate={handleRegeneratePlan}
+                    isNewUser={isNewUser}
                 />
             )}
             {view === 'diary' && dietPlan && <DiaryView plan={dietPlan} dailyLog={dailyLog} onAddFood={handleAddFood} />}

@@ -633,6 +633,22 @@ export const planService = {
 
     return dailyPlanFromDB(plan, formattedMeals);
   },
+
+  // Verificar se usuário já tem algum plano salvo
+  async hasExistingPlan(userId: string): Promise<boolean> {
+    const { data, error } = await supabase
+      .from('daily_plans')
+      .select('id')
+      .eq('user_id', userId)
+      .limit(1);
+
+    if (error) {
+      console.error('Error checking existing plan:', error);
+      return false;
+    }
+
+    return (data && data.length > 0) || false;
+  },
 };
 
 // ============================================
