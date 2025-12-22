@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 
+// Carregar variáveis de ambiente
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
@@ -10,16 +11,34 @@ if (import.meta.env.DEV) {
     hasKey: !!supabaseAnonKey,
     urlLength: supabaseUrl?.length || 0,
     keyLength: supabaseAnonKey?.length || 0,
+    mode: import.meta.env.MODE,
+    allViteKeys: Object.keys(import.meta.env).filter(key => key.startsWith('VITE_')),
   });
 }
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('❌ Missing Supabase environment variables:', {
+  const errorDetails = {
     VITE_SUPABASE_URL: supabaseUrl || 'MISSING',
     VITE_SUPABASE_ANON_KEY: supabaseAnonKey ? '***present***' : 'MISSING',
-    allEnvKeys: Object.keys(import.meta.env).filter(key => key.includes('SUPABASE')),
-  });
-  throw new Error('Missing Supabase environment variables. Please check your .env.local file.');
+    mode: import.meta.env.MODE,
+    allViteKeys: Object.keys(import.meta.env).filter(key => key.startsWith('VITE_')),
+    nodeEnv: import.meta.env.PROD ? 'production' : 'development',
+  };
+  
+  console.error('❌ Missing Supabase environment variables:', errorDetails);
+  
+  const errorMessage = `Missing Supabase environment variables. Please check your .env.local file.
+  
+Troubleshooting:
+1. Ensure .env.local exists in the project root
+2. Restart the dev server after creating/modifying .env.local
+3. Variables must start with VITE_ to be exposed
+4. Clear Vite cache: rm -rf node_modules/.vite
+
+Current mode: ${errorDetails.mode}
+Found VITE_ keys: ${errorDetails.allViteKeys.join(', ') || 'none'}`;
+  
+  throw new Error(errorMessage);
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
