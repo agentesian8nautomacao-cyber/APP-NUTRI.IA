@@ -11,6 +11,7 @@ interface ChatAssistantProps {
   dietPlan?: DailyPlan | null;
   dailyLog?: LogItem[];
   onAddFood?: (item: MealItem, type: string) => void;
+  isBlocked?: boolean;
 }
 
 // Helper to format text (Bold)
@@ -112,7 +113,7 @@ const MessageBubble: React.FC<{ message: ChatMessage }> = ({ message }) => {
   );
 };
 
-const ChatAssistant: React.FC<ChatAssistantProps> = ({ onClose, onLiveCall, userProfile, dietPlan, dailyLog, onAddFood }) => {
+const ChatAssistant: React.FC<ChatAssistantProps> = ({ onClose, onLiveCall, userProfile, dietPlan, dailyLog, onAddFood, isBlocked = false }) => {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([
     { 
@@ -135,7 +136,7 @@ const ChatAssistant: React.FC<ChatAssistantProps> = ({ onClose, onLiveCall, user
   }, [messages]);
 
   const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+    if (!input.trim() || isLoading || isBlocked) return;
 
     const userMsg: ChatMessage = {
       id: Date.now().toString(),
@@ -253,19 +254,20 @@ const ChatAssistant: React.FC<ChatAssistantProps> = ({ onClose, onLiveCall, user
             type="text" 
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            placeholder="Digite algo..."
-            className="flex-1 bg-transparent outline-none text-[#1A4D2E] placeholder:text-[#1A4D2E]/30 px-6 font-medium text-lg"
+            onKeyDown={(e) => e.key === 'Enter' && !isBlocked && handleSend()}
+            placeholder={isBlocked ? "Período de teste expirado" : "Digite algo..."}
+            disabled={isBlocked}
+            className={`flex-1 bg-transparent outline-none text-[#1A4D2E] placeholder:text-[#1A4D2E]/30 px-6 font-medium text-lg ${isBlocked ? 'opacity-50 cursor-not-allowed' : ''}`}
           />
           
           <button 
             onClick={handleSend}
-            disabled={!input.trim() || isLoading}
+            disabled={!input.trim() || isLoading || isBlocked}
             className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 ${
-              input.trim() 
+              input.trim() && !isBlocked
               ? 'bg-[#1A4D2E] text-[#F5F1E8] hover:scale-110 shadow-lg' 
               : 'bg-[#F5F1E8] text-[#1A4D2E]/20'
-            }`}
+            } ${isBlocked ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             {isLoading ? <Loader2 className="animate-spin" size={20} /> : <Send size={20} />}
           </button>

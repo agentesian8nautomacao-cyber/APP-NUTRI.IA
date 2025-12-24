@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { ArrowLeft, Ticket, ChevronRight, ChefHat, Check, Star, Eye, EyeOff } from 'lucide-react';
-import { couponService } from '../services/supabaseService';
+import { couponService, authFlowService } from '../services/supabaseService';
 
 interface LandingPageProps {
   onGetStarted: () => void;
@@ -60,10 +60,38 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDe
       }
   };
 
-  const handleRegisterSubmit = (e: React.FormEvent) => {
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
-      alert("Cadastro realizado com sucesso! Faça login para continuar.");
-      setScreen('login');
+      const form = e.target as HTMLFormElement;
+      const formData = new FormData(form);
+      const name = formData.get('name') as string;
+      const email = formData.get('email') as string;
+      const password = formData.get('password') as string;
+
+      if (!name || !email || !password) {
+          alert("Por favor, preencha todos os campos.");
+          return;
+      }
+
+      if (password.length < 6) {
+          alert("A senha deve ter pelo menos 6 caracteres.");
+          return;
+      }
+
+      try {
+          // Se tem cupom, usa o fluxo com cupom, senão cria trial
+          if (couponCode.trim()) {
+              await authFlowService.registerWithInvite(email, password, couponCode.trim());
+          } else {
+              // Criar conta com trial (sem cupom)
+              await authFlowService.registerWithInvite(email, password, undefined);
+          }
+          alert("Cadastro realizado com sucesso! Faça login para continuar.");
+          setScreen('login');
+      } catch (error: any) {
+          console.error('Erro ao cadastrar:', error);
+          alert(error.message || "Erro ao criar conta. Tente novamente.");
+      }
   };
 
   // --- SLIDER LOGIC ---
@@ -278,6 +306,16 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDe
                                     </button>
                                 </form>
                             )}
+                            
+                            {/* Botão de Trial Grátis */}
+                            <div className="mt-6 text-center">
+                                <button
+                                    onClick={() => setScreen('register')}
+                                    className="text-sm text-[#1A4D2E] hover:text-[#4F6F52] underline decoration-2 underline-offset-4 transition-colors font-medium"
+                                >
+                                    Não tenho código? Testar Grátis por 3 dias
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -293,17 +331,18 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDe
                             <form onSubmit={handleRegisterSubmit} className="space-y-4">
                                 <div>
                                     <label className="block text-xs font-bold uppercase text-gray-400 mb-2 pl-2">Nome</label>
-                                    <input type="text" className="w-full bg-[#F5F1E8] border border-transparent rounded-2xl p-4 outline-none focus:border-[#1A4D2E] focus:bg-white text-[#1A4D2E]" required />
+                                    <input type="text" name="name" className="w-full bg-[#F5F1E8] border border-transparent rounded-2xl p-4 outline-none focus:border-[#1A4D2E] focus:bg-white text-[#1A4D2E]" required />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold uppercase text-gray-400 mb-2 pl-2">Email</label>
-                                    <input type="email" className="w-full bg-[#F5F1E8] border border-transparent rounded-2xl p-4 outline-none focus:border-[#1A4D2E] focus:bg-white text-[#1A4D2E]" required />
+                                    <input type="email" name="email" className="w-full bg-[#F5F1E8] border border-transparent rounded-2xl p-4 outline-none focus:border-[#1A4D2E] focus:bg-white text-[#1A4D2E]" required />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold uppercase text-gray-400 mb-2 pl-2">Senha</label>
                                     <div className="relative">
                                         <input 
                                             type={showRegisterPassword ? "text" : "password"} 
+                                            name="password"
                                             className="w-full bg-[#F5F1E8] border border-transparent rounded-2xl p-4 pr-12 outline-none focus:border-[#1A4D2E] focus:bg-white text-[#1A4D2E]" 
                                             required 
                                         />
@@ -317,6 +356,11 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDe
                                         </button>
                                     </div>
                                 </div>
+                                {!couponCode && (
+                                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-sm text-blue-700">
+                                        ⏱️ Você está criando uma conta com período de teste de 3 dias grátis.
+                                    </div>
+                                )}
                                 <button type="submit" className="w-full bg-[#1A4D2E] text-white py-5 rounded-2xl font-bold text-lg mt-4 hover:scale-[1.02] transition-transform">
                                     Cadastrar
                                 </button>

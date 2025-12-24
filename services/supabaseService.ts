@@ -168,6 +168,42 @@ export const authService = {
       return null;
     }
   },
+
+  // Verificar se o trial expirou
+  async checkTrialStatus(): Promise<{ isTrial: boolean; isExpired: boolean; expiryDate?: string }> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return { isTrial: false, isExpired: false };
+
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('subscription_status, subscription_expiry')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error || !data) {
+        return { isTrial: false, isExpired: false };
+      }
+
+      const isTrial = data.subscription_status === 'trial';
+      if (!isTrial) {
+        return { isTrial: false, isExpired: false };
+      }
+
+      const expiryDate = data.subscription_expiry ? new Date(data.subscription_expiry) : null;
+      const now = new Date();
+      const isExpired = expiryDate ? now > expiryDate : false;
+
+      return {
+        isTrial: true,
+        isExpired,
+        expiryDate: expiryDate?.toISOString(),
+      };
+    } catch (err) {
+      console.error('Erro ao verificar status do trial:', err);
+      return { isTrial: false, isExpired: false };
+    }
+  },
 };
 
 // ============================================
@@ -387,8 +423,10 @@ export const authFlowService = {
    *   - Valida cupom (existe, ativo, com uso disponível)
    *   - Cria usuário com metadata { plan_type: plan_linked, subscription_status: 'active' }
    *   - Incrementa current_uses do cupom
-   * - Se NÃO houver código:
-   *   - Cria usuário com metadata { plan_type: 'free', subscription_status: 'inactive' }
+   * - Se NÃO houver código (Trial Grátis):
+   *   - Cria usuário com metadata { plan_type: 'free', subscription_status: 'trial' }
+   *   - Define subscription_expiry = hoje + 3 dias
+   *   - Define daily_free_minutes = 5 (300 segundos) - Trial tem menos tempo que Premium
    */
   async registerWithInvite(email: string, password: string, inviteCode?: string) {
     let coupon: Coupon | null = null;
@@ -409,7 +447,8 @@ export const authFlowService = {
     }
 
     const planType: PlanType = coupon?.plan_linked ?? 'free';
-    const subscriptionStatus: SubscriptionStatus = coupon ? 'active' : 'inactive';
+    // Se não tem cupom, cria como trial, senão active
+    const subscriptionStatus: SubscriptionStatus | 'trial' = coupon ? 'active' : 'trial';
 
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -426,6 +465,10 @@ export const authFlowService = {
     if (error) throw error;
 
     const user = data.user;
+
+    if (!user) {
+      throw new Error('Erro ao criar usuário.');
+    }
 
     // Se usou cupom e criou usuário com sucesso, incrementa uso do cupom
     if (coupon && user) {
@@ -462,6 +505,58 @@ export const authFlowService = {
           subscription_status: subscriptionStatus,
         })
         .eq('user_id', user.id);
+    } else {
+      // SEM CUPOM = TRIAL GRÁTIS
+      // Definir trial: subscription_status = 'trial', subscription_expiry = hoje + 3 dias, daily_free_minutes = 5 (300 segundos)
+      const expiryDate = new Date();
+      expiryDate.setDate(expiryDate.getDate() + 3); // +3 dias
+
+      // Verificar se o perfil já existe
+      const { data: existingProfile } = await supabase
+        .from('user_profiles')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (existingProfile) {
+        // Atualizar perfil existente
+        const { error: trialError } = await supabase
+          .from('user_profiles')
+          .update({
+            plan_type: 'free',
+            subscription_status: 'trial',
+            subscription_expiry: expiryDate.toISOString(),
+            daily_free_minutes: 5, // 5 minutos = 300 segundos (trial tem menos tempo)
+          })
+          .eq('user_id', user.id);
+
+        if (trialError) {
+          console.error('Erro ao configurar trial:', trialError);
+        }
+      } else {
+        // Criar perfil com trial (valores mínimos necessários)
+        const { error: trialError } = await supabase
+          .from('user_profiles')
+          .insert({
+            user_id: user.id,
+            name: user.email?.split('@')[0] || 'Usuário',
+            age: 30, // Default
+            gender: 'Other',
+            height: 170, // Default
+            weight: 70, // Default
+            activity_level: 'Light',
+            goal: 'General Health',
+            meals_per_day: 3,
+            plan_type: 'free',
+            subscription_status: 'trial',
+            subscription_expiry: expiryDate.toISOString(),
+            daily_free_minutes: 5, // 5 minutos = 300 segundos (trial tem menos tempo)
+          });
+
+        if (trialError) {
+          console.error('Erro ao criar perfil com trial:', trialError);
+        }
+      }
     }
 
     return data;

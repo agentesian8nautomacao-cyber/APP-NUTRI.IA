@@ -4,6 +4,7 @@ import { GoogleGenAI, LiveServerMessage, Modality, Blob, Type, FunctionDeclarati
 import { X, Mic, MicOff, PhoneOff, Activity, CheckCircle2, Lock, Home, BookOpen, User, Mic as MicIcon, ArrowDown, Zap, Clock, Infinity, Check } from 'lucide-react';
 import { UserProfile, DailyPlan, LogItem, MealItem } from '../types';
 import { checkVoiceAccess, consumeVoiceTime } from '../services/voiceAccessService';
+import { supabase } from '../services/supabaseClient';
 
 interface LiveConversationProps {
   onClose: () => void;
@@ -11,9 +12,10 @@ interface LiveConversationProps {
   dietPlan?: DailyPlan | null;
   dailyLog?: LogItem[];
   onAddFood?: (item: MealItem, type: string) => void;
+  isBlocked?: boolean;
 }
 
-const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfile, dietPlan, dailyLog, onAddFood }) => {
+const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfile, dietPlan, dailyLog, onAddFood, isBlocked = false }) => {
   const [isConnected, setIsConnected] = useState(false);
   const [isMicOn, setIsMicOn] = useState(true);
   const [volume, setVolume] = useState(0);
@@ -31,6 +33,7 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
   const [accessError, setAccessError] = useState<string | null>(null);
   const [secondsInCurrentSession, setSecondsInCurrentSession] = useState(0);
+  const [isTrialUser, setIsTrialUser] = useState(false); // Detectar se é usuário trial
   
   // Calcular total de minutos disponíveis
   const totalAvailableMinutes = remainingMinutes.is_vip 
@@ -115,10 +118,24 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
     return buffer;
   };
 
-  // Carregar saldos iniciais do backend
+  // Carregar saldos iniciais do backend e verificar se é trial
   useEffect(() => {
     const loadInitialAccess = async () => {
       try {
+        // Verificar se é usuário trial
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: profile } = await supabase
+            .from('user_profiles')
+            .select('subscription_status')
+            .eq('user_id', user.id)
+            .single();
+          
+          if (profile?.subscription_status === 'trial') {
+            setIsTrialUser(true);
+          }
+        }
+
         const access = await checkVoiceAccess();
         setHasAccess(access.hasAccess);
         if (access.remaining) {
@@ -178,6 +195,15 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
 
   // Init Session
   useEffect(() => {
+    // Bloquear se trial expirado
+    if (isBlocked) {
+      setStatus('Período de teste expirado');
+      setHasAccess(false);
+      setAccessError('TRIAL_EXPIRED');
+      if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
+      return;
+    }
+
     // Se ainda não verificou acesso, aguardar
     if (hasAccess === null) {
       return;
@@ -187,12 +213,20 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
     if (isLimitReached || !hasAccess) {
         // Stop audio streams if active
         if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
-        setStatus(accessError === 'NO_MINUTES_AVAILABLE' ? 'Sem minutos disponíveis' : 'Acesso negado');
+        setStatus(accessError === 'NO_MINUTES_AVAILABLE' ? 'Sem minutos disponíveis' : accessError === 'TRIAL_EXPIRED' ? 'Período de teste expirado' : 'Acesso negado');
         return;
     }
 
     const initSession = async () => {
       try {
+        // Bloquear se trial expirado
+        if (isBlocked) {
+          setStatus('Período de teste expirado');
+          setHasAccess(false);
+          setAccessError('TRIAL_EXPIRED');
+          return;
+        }
+
         // Verificar acesso uma última vez antes de conectar
         const accessCheck = await checkVoiceAccess();
         if (!accessCheck.hasAccess) {
@@ -391,8 +425,67 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
     setIsMicOn(!isMicOn);
   };
 
+  // --- TRIAL EXPIRED SCREEN ---
+  if (isBlocked || accessError === 'TRIAL_EXPIRED') {
+    return (
+      <div className="fixed inset-0 bg-[#F0FDF4] z-[60] flex flex-col items-center justify-between p-6 animate-in fade-in duration-500 font-sans">
+        <div className="w-full flex justify-end">
+          <button onClick={onClose} className="p-2 text-[#1E3A8A]/50 hover:text-[#1E3A8A]">
+            <X size={24} />
+          </button>
+        </div>
+
+        <div className="flex-1 flex flex-col items-center justify-center text-center max-w-sm w-full">
+          <h2 className="text-[#1E3A8A] text-3xl font-bold mb-8 leading-tight">
+            Período de Teste Expirado
+          </h2>
+
+          <div className="relative mb-10">
+            <div className="text-[140px] font-bold text-[#1E3A8A] leading-none opacity-5 select-none">3</div>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="bg-white p-6 rounded-full shadow-xl border border-[#F0FDF4]">
+                <Lock size={48} className="text-[#F97316]" />
+              </div>
+            </div>
+          </div>
+
+          <p className="text-[#374151] text-lg font-medium leading-relaxed mb-1">
+            Seu período de teste de 3 dias acabou.
+          </p>
+          <p className="text-[#374151]/80 text-base leading-relaxed mb-6">
+            Para continuar evoluindo e aproveitando todas as funcionalidades do Nutri.ai, escolha um plano.
+          </p>
+
+          <div className="mb-6 animate-bounce text-[#F97316]">
+            <ArrowDown size={32} strokeWidth={3} />
+          </div>
+
+          <button 
+            onClick={() => window.open('https://nutri.ai/planos', '_blank')}
+            className="w-full bg-[#F97316] text-white font-bold text-xl py-4 rounded-full shadow-lg hover:bg-[#EA580C] hover:scale-105 transition-all transform flex items-center justify-center gap-2 mb-4"
+          >
+            Ver Planos Disponíveis
+          </button>
+
+          <p className="text-[#1E3A8A] text-sm font-semibold opacity-60">
+            Clique acima para conferir agora mesmo.
+          </p>
+        </div>
+
+        <div className="w-full text-center pb-4">
+          <p className="text-gray-400 text-xs">
+            Cancele quando quiser.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   // --- TIME LIMIT REACHED SCREEN (UPSELL) ---
   if (isLimitReached) {
+      // Mensagem diferenciada para Trial vs Premium
+      const isTrialLimit = isTrialUser;
+      
       return (
         <div className="fixed inset-0 bg-[#F0FDF4] z-[60] flex flex-col items-center justify-between p-6 animate-in fade-in duration-500 font-sans">
             
@@ -407,14 +500,18 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
             <div className="flex-1 flex flex-col items-center justify-center text-center max-w-sm w-full">
                 
                 <h2 className="text-[#1E3A8A] text-3xl font-bold mb-8 leading-tight">
-                    {accessError === 'NO_MINUTES_AVAILABLE' 
-                      ? 'Seus minutos acabaram...' 
-                      : 'Acesso não disponível'}
+                    {isTrialLimit 
+                      ? 'Gostou? Seu tempo de degustação hoje acabou.' 
+                      : accessError === 'NO_MINUTES_AVAILABLE' 
+                        ? 'Seus minutos acabaram...' 
+                        : 'Acesso não disponível'}
                 </h2>
 
                 {/* Central Graphic */}
                 <div className="relative mb-10">
-                    <div className="text-[140px] font-bold text-[#1E3A8A] leading-none opacity-5 select-none">15</div>
+                    <div className="text-[140px] font-bold text-[#1E3A8A] leading-none opacity-5 select-none">
+                      {isTrialLimit ? '5' : '15'}
+                    </div>
                     <div className="absolute inset-0 flex items-center justify-center">
                         <div className="bg-white p-6 rounded-full shadow-xl border border-[#F0FDF4]">
                              <Lock size={48} className="text-[#F97316]" />
@@ -422,13 +519,26 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
                     </div>
                 </div>
 
-                {/* Persuasive Text */}
-                <p className="text-[#374151] text-lg font-medium leading-relaxed mb-1">
-                    Mas temos uma notícia boa!
-                </p>
-                <p className="text-[#374151]/80 text-base leading-relaxed mb-6">
-                    Você vai se surpreender com os planos que preparamos. As condições estão incríveis.
-                </p>
+                {/* Persuasive Text - Mensagem diferenciada para Trial */}
+                {isTrialLimit ? (
+                  <>
+                    <p className="text-[#374151] text-lg font-medium leading-relaxed mb-1">
+                      Assine o Premium para ter 3x mais tempo todos os dias!
+                    </p>
+                    <p className="text-[#374151]/80 text-base leading-relaxed mb-6">
+                      Você testou 5 minutos hoje. Com o Premium, você terá 15 minutos diários e muito mais funcionalidades.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-[#374151] text-lg font-medium leading-relaxed mb-1">
+                      Mas temos uma notícia boa!
+                    </p>
+                    <p className="text-[#374151]/80 text-base leading-relaxed mb-6">
+                      Você vai se surpreender com os planos que preparamos. As condições estão incríveis.
+                    </p>
+                  </>
+                )}
 
                 {/* Arrow */}
                 <div className="mb-6 animate-bounce text-[#F97316]">
@@ -437,14 +547,16 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
 
                 {/* CTA Button */}
                 <button 
-                    onClick={() => window.location.href = "https://pagina-de-vendas-nutriai.vercel.app/"}
+                    onClick={() => window.open('https://nutri.ai/planos', '_blank')}
                     className="w-full bg-[#F97316] text-white font-bold text-xl py-4 rounded-full shadow-lg hover:bg-[#EA580C] hover:scale-105 transition-all transform flex items-center justify-center gap-2 mb-4"
                 >
-                    Ver Planos Disponíveis
+                    {isTrialLimit ? 'Assinar Premium Agora' : 'Ver Planos Disponíveis'}
                 </button>
 
                 <p className="text-[#1E3A8A] text-sm font-semibold opacity-60">
-                    Clique abaixo para conferir agora mesmo.
+                    {isTrialLimit 
+                      ? 'Não perca essa oportunidade!' 
+                      : 'Clique abaixo para conferir agora mesmo.'}
                 </p>
             </div>
 

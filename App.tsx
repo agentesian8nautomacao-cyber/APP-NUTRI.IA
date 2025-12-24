@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile, DailyPlan, LogItem, MealItem, WellnessState, AppView, ScanHistoryItem, Gender, ActivityLevel, Goal } from './types';
 import { generateDietPlan } from './services/geminiService';
+import { authService } from './services/supabaseService';
 
 // Components
 import LandingPage from './components/LandingPage';
@@ -21,6 +22,7 @@ import LiveConversation from './components/LiveConversation';
 import ProfileView from './components/ProfileView';
 import SettingsView from './components/SettingsView';
 import PersonalChat from './components/PersonalChat';
+import TrialExpiredModal from './components/TrialExpiredModal';
 
 import { MessageCircle, Camera, Home, Menu, BookOpen, Phone, User } from 'lucide-react';
 
@@ -152,8 +154,30 @@ const App: React.FC = () => {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isLiveOpen, setIsLiveOpen] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [showTrialExpiredModal, setShowTrialExpiredModal] = useState(false);
+  const [isTrialExpired, setIsTrialExpired] = useState(false);
 
   // --- Effects ---
+  
+  // Verificar status do trial ao carregar o app
+  useEffect(() => {
+    const checkTrialStatus = async () => {
+      try {
+        const trialStatus = await authService.checkTrialStatus();
+        if (trialStatus.isTrial && trialStatus.isExpired) {
+          setIsTrialExpired(true);
+          setShowTrialExpiredModal(true);
+        }
+      } catch (error) {
+        console.error('Erro ao verificar status do trial:', error);
+      }
+    };
+
+    // Verificar apenas se não estiver na landing page
+    if (view !== 'landing' && view !== 'onboarding') {
+      checkTrialStatus();
+    }
+  }, [view]);
   useEffect(() => {
       if (isGenerating) {
           const fruits = ['🍎', '🍌', '🍇', '🍊', '🍓', '🥑', '🥦', '🥕'];
@@ -497,11 +521,19 @@ const App: React.FC = () => {
         {isChatOpen && (
             <ChatAssistant 
                 onClose={() => setIsChatOpen(false)} 
-                onLiveCall={() => { setIsChatOpen(false); setIsLiveOpen(true); }}
+                onLiveCall={() => { 
+                    if (isTrialExpired) {
+                        setShowTrialExpiredModal(true);
+                        return;
+                    }
+                    setIsChatOpen(false); 
+                    setIsLiveOpen(true); 
+                }}
                 userProfile={userProfile}
                 dietPlan={dietPlan}
                 dailyLog={dailyLog}
                 onAddFood={handleAddFood}
+                isBlocked={isTrialExpired}
             />
         )}
 
@@ -512,7 +544,21 @@ const App: React.FC = () => {
                 dietPlan={dietPlan}
                 dailyLog={dailyLog}
                 onAddFood={handleAddFood}
+                isBlocked={isTrialExpired}
             />
+        )}
+
+        {/* Modal de Trial Expirado */}
+        {showTrialExpiredModal && (
+            <TrialExpiredModal
+                onClose={() => setShowTrialExpiredModal(false)}
+                onViewPlans={() => setShowTrialExpiredModal(false)}
+            />
+        )}
+
+        {/* Bloqueio de funcionalidades se trial expirado */}
+        {isTrialExpired && (
+            <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40 pointer-events-none" />
         )}
 
     </div>
