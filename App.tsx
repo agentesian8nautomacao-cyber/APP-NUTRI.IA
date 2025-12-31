@@ -204,10 +204,8 @@ const App: React.FC = () => {
           // Verificar se é desenvolvedor
           await checkIsDeveloper();
           
-          if (view === 'landing') {
-            // Se já está autenticado, ir para dashboard
-            setView('dashboard');
-          }
+          // NÃO redirecionar automaticamente - deixar usuário escolher
+          // Se quiser ir direto, pode clicar em "Já tenho uma conta"
         }
       } catch (error: any) {
         // "Auth session missing" é esperado quando não há sessão - não é um erro crítico
@@ -229,6 +227,7 @@ const App: React.FC = () => {
       setIsAuthenticated(!!user);
       if (user) {
         await checkIsDeveloper();
+        // Não redirecionar automaticamente quando detectar sessão
       } else {
         setIsDeveloper(false);
         if (view !== 'landing') {
@@ -445,6 +444,19 @@ const App: React.FC = () => {
             }} 
             onAnalyze={() => setIsScannerOpen(true)}
             onDevSkip={handleDevSkip}
+            onLogout={async () => {
+              try {
+                await authService.signOut();
+                setIsAuthenticated(false);
+                setIsDeveloper(false);
+                setUserProfile(null);
+                setDietPlan(null);
+                setView('landing');
+              } catch (error) {
+                console.error('Erro ao fazer logout:', error);
+              }
+            }}
+            isAuthenticated={isAuthenticated}
         />
       );
   }

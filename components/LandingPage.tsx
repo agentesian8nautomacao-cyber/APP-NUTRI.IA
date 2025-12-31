@@ -7,9 +7,11 @@ interface LandingPageProps {
   onGetStarted: () => void;
   onAnalyze?: () => void;
   onDevSkip?: () => void;
+  onLogout?: () => void;
+  isAuthenticated?: boolean;
 }
 
-const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDevSkip }) => {
+const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDevSkip, onLogout, isAuthenticated = false }) => {
   const [screen, setScreen] = useState<'home' | 'login' | 'coupon' | 'register'>('home');
   const [couponCode, setCouponCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -178,9 +180,25 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDe
                      <span className="font-serif text-2xl font-bold text-[#1A4D2E]">Nutri.ai</span>
                  </div>
                  {screen === 'home' && (
-                     <button onClick={() => setScreen('login')} className="text-sm font-bold text-[#1A4D2E] underline decoration-2 underline-offset-4">
-                         Entrar
-                     </button>
+                     <div className="flex items-center gap-4">
+                         {isAuthenticated && onLogout && (
+                             <button 
+                                 onClick={async () => {
+                                     if (onLogout) {
+                                         await onLogout();
+                                     }
+                                 }}
+                                 className="text-sm font-bold text-red-600 hover:text-red-700 underline decoration-2 underline-offset-4"
+                             >
+                                 Sair
+                             </button>
+                         )}
+                         {!isAuthenticated && (
+                             <button onClick={() => setScreen('login')} className="text-sm font-bold text-[#1A4D2E] underline decoration-2 underline-offset-4">
+                                 Entrar
+                             </button>
+                         )}
+                     </div>
                  )}
             </div>
 
@@ -250,15 +268,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDe
                                     // Mensagens de erro mais amigáveis
                                     let errorMessage = 'Email ou senha incorretos. Tente novamente.';
                                     if (error?.message?.includes('Invalid login credentials') || error?.message?.includes('Invalid')) {
-                                        // Verificar se é um email de desenvolvedor
-                                        const developerEmails = ['19brenobernardes@gmail.com', 'paulohmorais@hotmail.com'];
-                                        const isDeveloperEmail = developerEmails.includes(loginEmail.trim().toLowerCase());
-                                        
-                                        if (isDeveloperEmail) {
-                                            errorMessage = 'Conta não encontrada. Por favor, crie uma conta primeiro usando "Criar Conta" ou "Testar Grátis por 3 dias".';
-                                        } else {
-                                            errorMessage = 'Email ou senha incorretos. Verifique suas credenciais ou crie uma conta.';
-                                        }
+                                        errorMessage = 'Email ou senha incorretos. Verifique suas credenciais ou crie uma conta.';
                                     } else if (error?.message?.includes('Email not confirmed')) {
                                         errorMessage = 'Por favor, confirme seu email antes de fazer login.';
                                     } else if (error?.message) {
