@@ -136,6 +136,7 @@ const LoginOrRegister: React.FC<LoginOrRegisterProps> = ({ inviteCode, onComplet
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="seu@email.com"
+                  autoComplete={isLoginMode ? "email" : "email"}
                   disabled={isLoading}
                   required
                   className="w-full pl-12 pr-4 py-4 rounded-2xl border-2 border-[#1A4D2E]/20 bg-white text-[#1A4D2E] focus:border-[#1A4D2E] focus:ring-4 focus:ring-[#1A4D2E]/10 transition-all disabled:opacity-60"
@@ -155,6 +156,7 @@ const LoginOrRegister: React.FC<LoginOrRegisterProps> = ({ inviteCode, onComplet
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder={isLoginMode ? 'Sua senha' : 'Mínimo 6 caracteres'}
+                  autoComplete={isLoginMode ? "current-password" : "new-password"}
                   disabled={isLoading}
                   required
                   className="w-full pl-12 pr-12 py-4 rounded-2xl border-2 border-[#1A4D2E]/20 bg-white text-[#1A4D2E] focus:border-[#1A4D2E] focus:ring-4 focus:ring-[#1A4D2E]/10 transition-all disabled:opacity-60"
@@ -182,6 +184,7 @@ const LoginOrRegister: React.FC<LoginOrRegisterProps> = ({ inviteCode, onComplet
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="Confirme sua senha"
+                    autoComplete="new-password"
                     disabled={isLoading}
                     required
                     className="w-full pl-12 pr-12 py-4 rounded-2xl border-2 border-[#1A4D2E]/20 bg-white text-[#1A4D2E] focus:border-[#1A4D2E] focus:ring-4 focus:ring-[#1A4D2E]/10 transition-all disabled:opacity-60"

@@ -228,7 +228,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDe
                             <form onSubmit={(e) => { e.preventDefault(); onGetStarted(); }} className="space-y-4">
                                 <div>
                                     <label className="block text-xs font-bold uppercase text-gray-400 mb-2 pl-2">Email</label>
-                                    <input type="email" placeholder="seu@email.com" className="w-full bg-[#F5F1E8] border border-transparent rounded-2xl p-4 outline-none focus:border-[#1A4D2E] focus:bg-white transition-colors text-[#1A4D2E]" />
+                                    <input type="email" placeholder="seu@email.com" autoComplete="email" className="w-full bg-[#F5F1E8] border border-transparent rounded-2xl p-4 outline-none focus:border-[#1A4D2E] focus:bg-white transition-colors text-[#1A4D2E]" />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold uppercase text-gray-400 mb-2 pl-2">Senha</label>
@@ -236,6 +236,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDe
                                         <input 
                                             type={showPassword ? "text" : "password"} 
                                             placeholder="••••••••" 
+                                            autoComplete="current-password"
                                             className="w-full bg-[#F5F1E8] border border-transparent rounded-2xl p-4 pr-12 outline-none focus:border-[#1A4D2E] focus:bg-white transition-colors text-[#1A4D2E]" 
                                         />
                                         <button
@@ -331,11 +332,11 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDe
                             <form onSubmit={handleRegisterSubmit} className="space-y-4">
                                 <div>
                                     <label className="block text-xs font-bold uppercase text-gray-400 mb-2 pl-2">Nome</label>
-                                    <input type="text" name="name" className="w-full bg-[#F5F1E8] border border-transparent rounded-2xl p-4 outline-none focus:border-[#1A4D2E] focus:bg-white text-[#1A4D2E]" required />
+                                    <input type="text" name="name" autoComplete="name" className="w-full bg-[#F5F1E8] border border-transparent rounded-2xl p-4 outline-none focus:border-[#1A4D2E] focus:bg-white text-[#1A4D2E]" required />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold uppercase text-gray-400 mb-2 pl-2">Email</label>
-                                    <input type="email" name="email" className="w-full bg-[#F5F1E8] border border-transparent rounded-2xl p-4 outline-none focus:border-[#1A4D2E] focus:bg-white text-[#1A4D2E]" required />
+                                    <input type="email" name="email" autoComplete="email" className="w-full bg-[#F5F1E8] border border-transparent rounded-2xl p-4 outline-none focus:border-[#1A4D2E] focus:bg-white text-[#1A4D2E]" required />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold uppercase text-gray-400 mb-2 pl-2">Senha</label>
@@ -343,6 +344,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDe
                                         <input 
                                             type={showRegisterPassword ? "text" : "password"} 
                                             name="password"
+                                            autoComplete="new-password"
                                             className="w-full bg-[#F5F1E8] border border-transparent rounded-2xl p-4 pr-12 outline-none focus:border-[#1A4D2E] focus:bg-white text-[#1A4D2E]" 
                                             required 
                                         />
