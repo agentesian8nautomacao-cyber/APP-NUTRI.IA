@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { UserProfile, DailyPlan, LogItem, MealItem, WellnessState, AppView, ScanHistoryItem, Gender, ActivityLevel, Goal } from './types';
 import { generateDietPlan } from './services/geminiService';
-import { authService, planService, surveyService } from './services/supabaseService';
+import { authService, planService, surveyService, profileService } from './services/supabaseService';
 
 // Components
 import LandingPage from './components/LandingPage';

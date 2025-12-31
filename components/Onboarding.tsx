@@ -29,8 +29,17 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
   });
 
   const handleNext = () => {
-    if (step < totalSteps) setStep(step + 1);
-    else onComplete(profile as UserProfile);
+    if (step < totalSteps) {
+      setStep(step + 1);
+    } else {
+      console.log('✅ [DEBUG] Onboarding completo, chamando onComplete com perfil:', profile);
+      // Validar se todos os campos obrigatórios estão preenchidos
+      if (!profile.name || !profile.age || !profile.gender || !profile.height || !profile.weight) {
+        alert('Por favor, preencha todos os campos obrigatórios antes de gerar o plano.');
+        return;
+      }
+      onComplete(profile as UserProfile);
+    }
   };
 
   const handleBack = () => {
