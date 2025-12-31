@@ -19,18 +19,17 @@ Foi criada uma função RPC (`create_user_profile`) que bypassa o RLS usando `SE
 3. Cole o conteúdo do arquivo `criar_perfil_usuario_rpc.sql`
 4. Clique em **Run**
 
-### 2. Auto-Confirmação de Email
+### 2. Desativar Confirmação de Email (OBRIGATÓRIO)
 
-Para permitir que usuários façam login sem confirmar o email, você precisa configurar no Supabase Dashboard:
+**IMPORTANTE**: O sistema não exige confirmação de email. Você DEVE desativar isso no Supabase Dashboard:
 
 1. Acesse **Authentication** → **Settings**
-2. Em **Email Auth**, desative a opção **"Confirm email"** OU
-3. Configure **"Enable email confirmations"** como `false`
+2. Em **Email Auth**, **DESATIVE** a opção **"Enable email confirmations"**
+3. Salve as alterações
 
-**Alternativa**: Se você quiser manter a confirmação de email, mas permitir login imediato após cadastro, você pode:
+**Resultado**: Usuários poderão fazer login imediatamente após o cadastro, sem precisar confirmar o email.
 
-1. Usar o Admin API para confirmar o email automaticamente (requer Edge Function)
-2. Ou configurar um webhook que confirma o email após o signUp
+**Documentação completa**: Veja `DESATIVAR_CONFIRMACAO_EMAIL.md` para instruções detalhadas.
 
 ### 3. Código Atualizado
 
