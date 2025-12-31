@@ -971,8 +971,63 @@ const App: React.FC = () => {
                     try {
                         const user = await authService.getCurrentUser();
                         if (user) {
-                            await surveyService.saveSurvey(user.id, answers);
+                            // Salvar enquete
+                            await surveyService.saveSurvey(user.id, {
+                                howDidYouFindUs: answers.howDidYouFindUs,
+                                mainGoal: answers.mainGoal || '',
+                                experience: answers.experience,
+                                feedback: answers.feedback
+                            });
                             console.log('✅ Enquete salva com sucesso');
+                            
+                            // Se a enquete tem dados básicos (nome, idade, etc), criar/atualizar perfil
+                            if (answers.name && answers.age && answers.height && answers.weight) {
+                                const profile: UserProfile = {
+                                    name: answers.name,
+                                    age: answers.age,
+                                    gender: answers.gender,
+                                    height: answers.height,
+                                    weight: answers.weight,
+                                    activityLevel: answers.activityLevel,
+                                    goal: answers.goal,
+                                    restrictions: '',
+                                    mealsPerDay: 3,
+                                    medicalHistory: '',
+                                    routineDescription: '',
+                                    foodPreferences: '',
+                                    streak: 0,
+                                    lastActiveDate: new Date().toISOString(),
+                                    pantryItems: [],
+                                    aiVoice: 'Kore'
+                                };
+                                
+                                // Salvar perfil
+                                await profileService.saveProfile(profile, user.id);
+                                setUserProfile(profile);
+                                console.log('✅ Perfil criado a partir da enquete');
+                                
+                                // Se não tem plano, gerar
+                                const plan = await planService.getPlan(user.id);
+                                if (!plan) {
+                                    setView('generating');
+                                    setIsGenerating(true);
+                                    try {
+                                        const newPlan = await generateDietPlan(profile);
+                                        setDietPlan(newPlan);
+                                        await planService.savePlan(newPlan, user.id);
+                                        setView('diet_plan');
+                                    } catch (error) {
+                                        console.error("Failed to generate plan", error);
+                                        alert("Ocorreu um erro ao gerar seu plano. Tente novamente.");
+                                        setView('onboarding');
+                                    } finally {
+                                        setIsGenerating(false);
+                                    }
+                                } else {
+                                    setDietPlan(plan);
+                                    setView('diet_plan');
+                                }
+                            }
                         }
                     } catch (error) {
                         console.error('Erro ao salvar enquete:', error);
@@ -981,7 +1036,7 @@ const App: React.FC = () => {
                     setShowSurvey(false);
                     
                     // Se estava no onboarding, continuar gerando plano
-                    if (isNewUser && userProfile) {
+                    if (isNewUser && userProfile && !answers.name) {
                         setView('generating');
                         setIsGenerating(true);
                         try {
@@ -995,8 +1050,8 @@ const App: React.FC = () => {
                         } finally {
                             setIsGenerating(false);
                         }
-                    } else if (view === 'landing') {
-                        // Se estava na landing, ir para dashboard
+                    } else if (view === 'landing' && !answers.name) {
+                        // Se estava na landing e não criou perfil, ir para dashboard
                         setView('dashboard');
                     }
                 }}
