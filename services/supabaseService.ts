@@ -154,16 +154,31 @@ export const authService = {
 
   // Obter usuário atual
   async getCurrentUser() {
-    const { data: { user }, error } = await supabase.auth.getUser();
-    // Se não houver sessão, retornar null ao invés de lançar erro
-    if (error) {
-      // "Auth session missing" é esperado quando não há sessão
-      if (error.message?.includes('session') || error.message?.includes('Auth session missing')) {
-        return null;
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser();
+      // Se não houver sessão, retornar null ao invés de lançar erro
+      if (error) {
+        // "Auth session missing" é esperado quando não há sessão
+        if (error.message?.includes('session') || 
+            error.message?.includes('Auth session missing') ||
+            error.message?.includes('User from sub claim in JWT does not exist') ||
+            error.status === 403) {
+          console.warn('⚠️ [DEBUG] Sessão inválida ou usuário não existe no JWT:', error.message);
+          // Tentar limpar sessão inválida
+          await supabase.auth.signOut();
+          return null;
+        }
+        throw error;
       }
-      throw error;
+      return user;
+    } catch (err: any) {
+      console.error('❌ [DEBUG] Erro ao obter usuário:', err);
+      // Se for erro de JWT inválido, limpar sessão
+      if (err.message?.includes('JWT') || err.message?.includes('sub claim')) {
+        await supabase.auth.signOut();
+      }
+      return null;
     }
-    return user;
   },
 
   // Observar mudanças de autenticação

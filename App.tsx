@@ -163,6 +163,7 @@ const App: React.FC = () => {
   const [isDevMode, setIsDevMode] = useState(false); // Flag para modo DEV
   const [isDeveloper, setIsDeveloper] = useState(false); // Flag para desenvolvedor
   const [showSurvey, setShowSurvey] = useState(false); // Flag para mostrar enquete
+  const [isProcessingGetStarted, setIsProcessingGetStarted] = useState(false); // Flag para prevenir múltiplas chamadas
 
   // --- Effects ---
   
@@ -565,6 +566,14 @@ const App: React.FC = () => {
       return (
         <LandingPage 
             onGetStarted={async () => {
+              // Prevenir múltiplas chamadas simultâneas
+              if (isProcessingGetStarted) {
+                console.log('⏸️ [DEBUG] onGetStarted já em processamento, ignorando...');
+                return;
+              }
+              
+              setIsProcessingGetStarted(true);
+              
               // Verificar se está autenticado antes de continuar
               console.log('🚀 [DEBUG] onGetStarted chamado');
               try {
@@ -634,11 +643,14 @@ const App: React.FC = () => {
                     // A enquete coleta dados básicos e gera o plano, então deve aparecer se não foi respondida
                     try {
                       const hasCompleted = await surveyService.hasCompletedSurvey(user.id);
-                      if (!hasCompleted && !isDeveloper) {
+                      if (!hasCompleted && !isDeveloper && !showSurvey) {
                         console.log('📋 [DEBUG] Mostrando enquete para novo usuário (primeiro acesso)');
                         // Mostrar enquete antes de ir para dashboard
                         // A enquete vai coletar dados básicos e gerar o plano
-                        setShowSurvey(true);
+                        // Prevenir múltiplas chamadas
+                        if (!showSurvey) {
+                          setShowSurvey(true);
+                        }
                       } else {
                         // Se já respondeu enquete, verificar se tem plano
                         if (!dietPlan) {
