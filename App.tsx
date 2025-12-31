@@ -177,10 +177,12 @@ const App: React.FC = () => {
         const isDev = DEVELOPER_EMAILS.includes(user.email.toLowerCase());
         setIsDeveloper(isDev);
         // Se for desenvolvedor, desativar todos os bloqueios
+        // MAS manter acesso a todas as funcionalidades, incluindo enquetes
         if (isDev) {
           setIsTrialExpired(false);
           setShowTrialExpiredModal(false);
-          setIsDevMode(true); // Tratar como modo DEV
+          // NÃO ativar isDevMode para desenvolvedores - eles devem ver tudo, incluindo enquetes
+          // isDevMode pode ocultar algumas funcionalidades como enquetes
         }
         return isDev;
       }
