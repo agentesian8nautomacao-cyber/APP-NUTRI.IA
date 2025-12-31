@@ -644,20 +644,29 @@ const App: React.FC = () => {
                     
                     console.log('✅ [DEBUG] Verificando se deve mostrar enquete...');
                     
-                    // Verificar se deve mostrar enquete (novos usuários)
-                    try {
-                      const hasCompleted = await surveyService.hasCompletedSurvey(user.id);
-                      if (!hasCompleted && !isDeveloper) {
-                        console.log('📋 [DEBUG] Mostrando enquete para novo usuário');
-                        // Mostrar enquete antes de ir para dashboard
-                        setShowSurvey(true);
-                      } else {
-                        console.log('✅ [DEBUG] Enquete já respondida ou desenvolvedor, indo para dashboard');
+                    // Verificar se deve mostrar enquete (apenas para novos usuários sem perfil completo)
+                    // Se o usuário já tem perfil com dados básicos (nome, idade, altura, peso), não mostrar enquete
+                    const hasCompleteProfile = profile && profile.name && profile.age && profile.height && profile.weight;
+                    
+                    if (hasCompleteProfile) {
+                      console.log('✅ [DEBUG] Usuário já tem perfil completo, indo para dashboard');
+                      setView('dashboard');
+                    } else {
+                      // Verificar se já respondeu enquete
+                      try {
+                        const hasCompleted = await surveyService.hasCompletedSurvey(user.id);
+                        if (!hasCompleted && !isDeveloper) {
+                          console.log('📋 [DEBUG] Mostrando enquete para novo usuário sem perfil completo');
+                          // Mostrar enquete antes de ir para dashboard
+                          setShowSurvey(true);
+                        } else {
+                          console.log('✅ [DEBUG] Enquete já respondida ou desenvolvedor, indo para dashboard');
+                          setView('dashboard');
+                        }
+                      } catch (error) {
+                        console.error('❌ [DEBUG] Erro ao verificar enquete:', error);
                         setView('dashboard');
                       }
-                    } catch (error) {
-                      console.error('❌ [DEBUG] Erro ao verificar enquete:', error);
-                      setView('dashboard');
                     }
                   } else {
                     console.log('⚠️ [DEBUG] Sem perfil, redirecionando para onboarding');
