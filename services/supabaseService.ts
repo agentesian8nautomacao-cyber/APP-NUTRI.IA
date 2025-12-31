@@ -461,6 +461,7 @@ export const authFlowService = {
       email,
       password,
       options: {
+        emailRedirectTo: window.location.origin,
         data: {
           plan_type: planType,
           subscription_status: subscriptionStatus,
@@ -476,6 +477,10 @@ export const authFlowService = {
     if (!user) {
       throw new Error('Erro ao criar usuário.');
     }
+
+    // Aguardar um pouco para garantir que a sessão está estabelecida
+    // Isso é necessário para que o RLS reconheça o usuário autenticado
+    await new Promise(resolve => setTimeout(resolve, 500));
 
     // Se usou cupom e criou usuário com sucesso, incrementa uso do cupom
     if (coupon && user) {
@@ -503,15 +508,27 @@ export const authFlowService = {
         // Não falha o cadastro, mas loga o erro
       }
 
-      // Também podemos opcionalmente marcar o plano diretamente em user_profiles
-      // quando o perfil já existir (ex: re-registro / migração):
-      await supabase
-        .from('user_profiles')
-        .update({
-          plan_type: planType,
-          subscription_status: subscriptionStatus,
-        })
-        .eq('user_id', user.id);
+      // Criar ou atualizar perfil usando função RPC (bypass RLS)
+      const { error: profileError } = await supabase.rpc('create_user_profile', {
+        p_user_id: user.id,
+        p_name: user.email?.split('@')[0] || 'Usuário',
+        p_plan_type: planType,
+        p_subscription_status: subscriptionStatus,
+        p_subscription_expiry: null,
+        p_daily_free_minutes: 15, // Premium tem 15 minutos
+      });
+
+      if (profileError) {
+        console.error('Erro ao criar/atualizar perfil com cupom:', profileError);
+        // Tentar método alternativo
+        await supabase
+          .from('user_profiles')
+          .update({
+            plan_type: planType,
+            subscription_status: subscriptionStatus,
+          })
+          .eq('user_id', user.id);
+      }
     } else {
       // SEM CUPOM = TRIAL GRÁTIS
       // Definir trial: subscription_status = 'trial', subscription_expiry = hoje + 3 dias, daily_free_minutes = 5 (300 segundos)
@@ -541,27 +558,40 @@ export const authFlowService = {
           console.error('Erro ao configurar trial:', trialError);
         }
       } else {
-        // Criar perfil com trial (valores mínimos necessários)
-        const { error: trialError } = await supabase
-          .from('user_profiles')
-          .insert({
-            user_id: user.id,
-            name: user.email?.split('@')[0] || 'Usuário',
-            age: 30, // Default
-            gender: 'Other',
-            height: 170, // Default
-            weight: 70, // Default
-            activity_level: 'Light',
-            goal: 'General Health',
-            meals_per_day: 3,
-            plan_type: 'free',
-            subscription_status: 'trial',
-            subscription_expiry: expiryDate.toISOString(),
-            daily_free_minutes: 5, // 5 minutos = 300 segundos (trial tem menos tempo)
-          });
+        // Criar perfil com trial usando função RPC (bypass RLS)
+        const { data: profileData, error: trialError } = await supabase.rpc('create_user_profile', {
+          p_user_id: user.id,
+          p_name: user.email?.split('@')[0] || 'Usuário',
+          p_plan_type: 'free',
+          p_subscription_status: 'trial',
+          p_subscription_expiry: expiryDate.toISOString(),
+          p_daily_free_minutes: 5, // 5 minutos = 300 segundos (trial tem menos tempo)
+        });
 
         if (trialError) {
           console.error('Erro ao criar perfil com trial:', trialError);
+          // Tentar método alternativo se RPC falhar
+          const { error: fallbackError } = await supabase
+            .from('user_profiles')
+            .insert({
+              user_id: user.id,
+              name: user.email?.split('@')[0] || 'Usuário',
+              age: 30,
+              gender: 'Other',
+              height: 170,
+              weight: 70,
+              activity_level: 'Light',
+              goal: 'General Health',
+              meals_per_day: 3,
+              plan_type: 'free',
+              subscription_status: 'trial',
+              subscription_expiry: expiryDate.toISOString(),
+              daily_free_minutes: 5,
+            });
+          
+          if (fallbackError) {
+            console.error('Erro no método alternativo de criação de perfil:', fallbackError);
+          }
         }
       }
     }
