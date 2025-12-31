@@ -409,22 +409,30 @@ const App: React.FC = () => {
     }
     
     // Verificar se deve mostrar enquete (após onboarding completo)
-    try {
-      const user = await authService.getCurrentUser();
-      if (user) {
-        const hasCompleted = await surveyService.hasCompletedSurvey(user.id);
-        if (!hasCompleted && !isDeveloper) {
-          console.log('📋 [DEBUG] Mostrando enquete após onboarding');
-          // Mostrar enquete antes de gerar o plano
-          setShowSurvey(true);
-          return; // Não gerar plano ainda, aguardar enquete
-        } else {
-          console.log('✅ [DEBUG] Enquete já completada ou é desenvolvedor, gerando plano diretamente');
+    // Se o perfil já tem dados básicos do onboarding, não mostrar enquete
+    const hasCompleteProfile = profile && profile.name && profile.age && profile.height && profile.weight;
+    
+    if (hasCompleteProfile) {
+      console.log('✅ [DEBUG] Perfil completo do onboarding, gerando plano diretamente (sem enquete)');
+    } else {
+      // Apenas mostrar enquete se não tiver perfil completo
+      try {
+        const user = await authService.getCurrentUser();
+        if (user) {
+          const hasCompleted = await surveyService.hasCompletedSurvey(user.id);
+          if (!hasCompleted && !isDeveloper) {
+            console.log('📋 [DEBUG] Mostrando enquete após onboarding (perfil incompleto)');
+            // Mostrar enquete antes de gerar o plano
+            setShowSurvey(true);
+            return; // Não gerar plano ainda, aguardar enquete
+          } else {
+            console.log('✅ [DEBUG] Enquete já completada ou é desenvolvedor, gerando plano diretamente');
+          }
         }
+      } catch (error) {
+        console.error('❌ [DEBUG] Erro ao verificar enquete:', error);
+        // Continuar mesmo se houver erro na verificação da enquete
       }
-    } catch (error) {
-      console.error('❌ [DEBUG] Erro ao verificar enquete:', error);
-      // Continuar mesmo se houver erro na verificação da enquete
     }
     
     // Se já respondeu enquete ou é desenvolvedor, continuar normalmente
@@ -784,18 +792,18 @@ const App: React.FC = () => {
             {view === 'dashboard' && (
                 <>
                     {userProfile && dietPlan ? (
-                        <Dashboard 
-                            plan={dietPlan} 
-                            user={userProfile} 
-                            dailyLog={dailyLog}
-                            wellness={wellness}
-                            setWellness={setWellness}
-                            onAddFood={handleAddFood}
-                            onAnalyze={() => setIsScannerOpen(true)}
-                            onChat={() => setIsChatOpen(true)}
-                            onNavigate={setView}
-                            onMenuClick={() => setIsSidebarOpen(true)}
-                        />
+                <Dashboard 
+                    plan={dietPlan} 
+                    user={userProfile} 
+                    dailyLog={dailyLog}
+                    wellness={wellness}
+                    setWellness={setWellness}
+                    onAddFood={handleAddFood}
+                    onAnalyze={() => setIsScannerOpen(true)}
+                    onChat={() => setIsChatOpen(true)}
+                    onNavigate={setView}
+                    onMenuClick={() => setIsSidebarOpen(true)}
+                />
                     ) : (
                         <div className="min-h-screen bg-[#F5F1E8] flex items-center justify-center">
                             <div className="text-center">
