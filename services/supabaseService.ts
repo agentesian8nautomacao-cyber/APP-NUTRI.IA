@@ -752,7 +752,13 @@ export const planService = {
 
     const { data: plan, error } = await supabase
       .from('daily_plans')
-      .select('*')
+      .select(`
+        *,
+        daily_plan_meals (
+          *,
+          meal_items (*)
+        )
+      `)
       .eq('user_id', userId)
       .eq('plan_date', planDate)
       .single();

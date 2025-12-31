@@ -169,11 +169,11 @@ export const generateDietPlan = async (
       parts.unshift({ inlineData: { mimeType: attachment.mimeType, data: attachment.data } });
   }
 
-  // Use gemini-3-pro-preview for the main diet plan generation as it is a complex reasoning task.
+  // Use gemini-2.5-flash for diet plan generation (gemini-3-pro has quota limits in free tier)
   // We use responseSchema to ensure the output is parseable JSON.
   return callWithRetry(async () => {
       const response = await ai.models.generateContent({
-        model: "gemini-3-pro-preview",
+        model: "gemini-2.5-flash", // Changed from gemini-3-pro-preview due to quota limits
         contents: { parts: parts },
         config: {
           responseMimeType: "application/json",
@@ -435,8 +435,8 @@ export const chatWithNutritionist = async (
     };
 
     if (options?.useThinking) {
-      model = "gemini-3-pro-preview";
-      config.thinkingConfig = { thinkingBudget: 32768 }; 
+      model = "gemini-2.5-flash"; // Changed from gemini-3-pro-preview due to quota limits
+      // Note: gemini-2.5-flash doesn't support thinkingConfig, but works well for most cases
     } else if (options?.useSearch) {
       model = "gemini-2.5-flash";
       config.tools = [{ googleSearch: {} }];
