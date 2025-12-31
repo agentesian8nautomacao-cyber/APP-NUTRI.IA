@@ -683,58 +683,52 @@ export const profileService = {
   // Carregar perfil do usuário
   async getProfile(userId: string): Promise<UserProfile | null> {
     try {
+      // Primeiro, tentar com select=* (formato mais simples)
       const { data, error } = await supabase
         .from('user_profiles')
-        .select(`
-          id,
-          user_id,
-          name,
-          age,
-          gender,
-          height,
-          weight,
-          activity_level,
-          goal,
-          restrictions,
-          meals_per_day,
-          medical_history,
-          routine_description,
-          food_preferences,
-          streak,
-          last_active_date,
-          avatar,
-          chef_avatar,
-          created_at,
-          updated_at
-        `)
+        .select('*')
         .eq('user_id', userId)
-        .single();
+        .maybeSingle();
 
       if (error) {
         if (error.code === 'PGRST116') return null; // Não encontrado
-        // Se for erro 406, tentar com select=* como fallback
-        if (error.code === 'PGRST301' || error.message?.includes('406')) {
-          console.warn('Erro 406 ao buscar perfil, tentando método alternativo...');
-          const { data: fallbackData, error: fallbackError } = await supabase
+        
+        // Se for erro 406, pode ser problema de RLS ou formato
+        if (error.code === 'PGRST301' || error.message?.includes('406') || error.status === 406) {
+          console.warn('Erro 406 ao buscar perfil. Verificando RLS e tentando método alternativo...');
+          
+          // Tentar verificar se o usuário está autenticado
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) {
+            console.error('Usuário não autenticado - isso pode causar erro 406');
+            return null;
+          }
+          
+          // Tentar novamente com select explícito
+          const { data: retryData, error: retryError } = await supabase
             .from('user_profiles')
-            .select('*')
+            .select('id, user_id, name, age, gender, height, weight, activity_level, goal, restrictions, meals_per_day, medical_history, routine_description, food_preferences, streak, last_active_date, avatar, chef_avatar')
             .eq('user_id', userId)
             .maybeSingle();
           
-          if (fallbackError) {
-            if (fallbackError.code === 'PGRST116') return null;
-            throw fallbackError;
+          if (retryError) {
+            if (retryError.code === 'PGRST116') return null;
+            console.error('Erro ao buscar perfil (tentativa 2):', retryError);
+            // Não lançar erro, apenas retornar null para não quebrar o fluxo
+            return null;
           }
-          return fallbackData ? userProfileFromDB(fallbackData) : null;
+          return retryData ? userProfileFromDB(retryData) : null;
         }
-        throw error;
+        
+        console.error('Erro ao buscar perfil:', error);
+        // Não lançar erro, apenas retornar null
+        return null;
       }
 
       return data ? userProfileFromDB(data) : null;
     } catch (error: any) {
-      console.error('Erro ao buscar perfil:', error);
-      if (error.code === 'PGRST116') return null;
-      throw error;
+      console.error('Erro ao buscar perfil (catch):', error);
+      return null;
     }
   },
 
