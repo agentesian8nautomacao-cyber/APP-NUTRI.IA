@@ -189,11 +189,27 @@ export const authService = {
         .single();
 
       if (error) {
+        // Se for erro 406, tentar método alternativo
+        if (error.code === 'PGRST301' || error.message?.includes('406')) {
+          console.warn('Erro 406 ao buscar perfil, tentando método alternativo...');
+          const { data: fallbackData, error: fallbackError } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('user_id', user.id)
+            .maybeSingle();
+          
+          if (fallbackError) {
+            if (fallbackError.code === 'PGRST116') return null;
+            throw fallbackError;
+          }
+          return fallbackData ? userProfileFromDB(fallbackData) : null;
+        }
+        
         if (error.code === 'PGRST116') return null; // Não encontrado
         throw error;
       }
 
-      return userProfileFromDB(data);
+      return data ? userProfileFromDB(data) : null;
     } catch (err) {
       console.error('Erro ao buscar perfil do usuário:', err);
       return null;
