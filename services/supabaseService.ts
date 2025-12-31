@@ -165,7 +165,26 @@ export const authService = {
 
       const { data, error } = await supabase
         .from('user_profiles')
-        .select('*')
+        .select(`
+          id,
+          user_id,
+          name,
+          age,
+          gender,
+          height,
+          weight,
+          activity_level,
+          goal,
+          restrictions,
+          meals_per_day,
+          medical_history,
+          routine_description,
+          food_preferences,
+          streak,
+          last_active_date,
+          avatar,
+          chef_avatar
+        `)
         .eq('user_id', user.id)
         .single();
 
@@ -647,18 +666,60 @@ export const profileService = {
 
   // Carregar perfil do usuário
   async getProfile(userId: string): Promise<UserProfile | null> {
-    const { data, error } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .eq('user_id', userId)
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select(`
+          id,
+          user_id,
+          name,
+          age,
+          gender,
+          height,
+          weight,
+          activity_level,
+          goal,
+          restrictions,
+          meals_per_day,
+          medical_history,
+          routine_description,
+          food_preferences,
+          streak,
+          last_active_date,
+          avatar,
+          chef_avatar,
+          created_at,
+          updated_at
+        `)
+        .eq('user_id', userId)
+        .single();
 
-    if (error) {
-      if (error.code === 'PGRST116') return null; // Não encontrado
+      if (error) {
+        if (error.code === 'PGRST116') return null; // Não encontrado
+        // Se for erro 406, tentar com select=* como fallback
+        if (error.code === 'PGRST301' || error.message?.includes('406')) {
+          console.warn('Erro 406 ao buscar perfil, tentando método alternativo...');
+          const { data: fallbackData, error: fallbackError } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('user_id', userId)
+            .maybeSingle();
+          
+          if (fallbackError) {
+            if (fallbackError.code === 'PGRST116') return null;
+            throw fallbackError;
+          }
+          return fallbackData ? userProfileFromDB(fallbackData) : null;
+        }
+        throw error;
+      }
+
+      return data ? userProfileFromDB(data) : null;
+    } catch (error: any) {
+      console.error('Erro ao buscar perfil:', error);
+      if (error.code === 'PGRST116') return null;
       throw error;
     }
-
-    return data ? userProfileFromDB(data) : null;
   },
 
   // Atualizar streak
@@ -1411,9 +1472,35 @@ export const surveyService = {
         .from('user_surveys')
         .select('id')
         .eq('user_id', userId)
-        .single();
+        .maybeSingle();
 
       if (error) {
+        // Se for erro 406, tentar método alternativo
+        if (error.code === 'PGRST301' || error.message?.includes('406')) {
+          console.warn('Erro 406 ao verificar enquete, tentando método alternativo...');
+          const { data: fallbackData, error: fallbackError } = await supabase
+            .from('user_surveys')
+            .select('id')
+            .eq('user_id', userId)
+            .maybeSingle();
+          
+          if (fallbackError) {
+            if (fallbackError.code === 'PGRST116') return false;
+            // Se a tabela não existir, verificar em user_profiles
+            if (fallbackError.code === '42P01') {
+              const { data: profile } = await supabase
+                .from('user_profiles')
+                .select('survey_completed')
+                .eq('user_id', userId)
+                .maybeSingle();
+              return profile?.survey_completed || false;
+            }
+            console.error('Erro ao verificar enquete:', fallbackError);
+            return false;
+          }
+          return !!fallbackData;
+        }
+        
         if (error.code === 'PGRST116') return false; // Não encontrado = não respondeu
         // Se a tabela não existir, verificar em user_profiles
         if (error.code === '42P01') {
@@ -1421,10 +1508,11 @@ export const surveyService = {
             .from('user_profiles')
             .select('survey_completed')
             .eq('user_id', userId)
-            .single();
+            .maybeSingle();
           return profile?.survey_completed || false;
         }
-        throw error;
+        console.error('Erro ao verificar enquete:', error);
+        return false;
       }
 
       return !!data;

@@ -41,7 +41,21 @@ Found VITE_ keys: ${errorDetails.allViteKeys.join(', ') || 'none'}`;
   throw new Error(errorMessage);
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  db: {
+    schema: 'public',
+  },
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+  },
+  global: {
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+    },
+  },
+});
 
 // Tipos TypeScript para o banco de dados
 export type Database = {
