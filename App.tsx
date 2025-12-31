@@ -1018,26 +1018,21 @@ const App: React.FC = () => {
                                 setUserProfile(profile);
                                 console.log('✅ Perfil criado a partir da enquete');
                                 
-                                // Se não tem plano, gerar
-                                const plan = await planService.getPlan(user.id);
-                                if (!plan) {
-                                    setView('generating');
-                                    setIsGenerating(true);
-                                    try {
-                                        const newPlan = await generateDietPlan(profile);
-                                        setDietPlan(newPlan);
-                                        await planService.savePlan(newPlan, user.id);
-                                        setView('diet_plan');
-                                    } catch (error) {
-                                        console.error("Failed to generate plan", error);
-                                        alert("Ocorreu um erro ao gerar seu plano. Tente novamente.");
-                                        setView('onboarding');
-                                    } finally {
-                                        setIsGenerating(false);
-                                    }
-                                } else {
-                                    setDietPlan(plan);
+                                // Sempre gerar plano após enquete (primeiro acesso)
+                                setView('generating');
+                                setIsGenerating(true);
+                                try {
+                                    const newPlan = await generateDietPlan(profile);
+                                    setDietPlan(newPlan);
+                                    await planService.savePlan(newPlan, user.id);
+                                    console.log('✅ Plano gerado após enquete');
                                     setView('diet_plan');
+                                } catch (error) {
+                                    console.error("Failed to generate plan", error);
+                                    alert("Ocorreu um erro ao gerar seu plano. Tente novamente.");
+                                    setView('dashboard');
+                                } finally {
+                                    setIsGenerating(false);
                                 }
                             }
                         }
