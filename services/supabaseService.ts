@@ -1628,7 +1628,7 @@ export const surveyService = {
   // Salvar respostas da enquete
   async saveSurvey(userId: string, answers: {
     howDidYouFindUs: string;
-    mainGoal: string;
+    mainGoal?: string;
     experience: string;
     feedback?: string;
   }): Promise<void> {
@@ -1639,7 +1639,7 @@ export const surveyService = {
         .insert({
           user_id: userId,
           how_did_you_find_us: answers.howDidYouFindUs,
-          main_goal: answers.mainGoal,
+          main_goal: answers.mainGoal || null,
           experience: answers.experience,
           feedback: answers.feedback || null,
           completed_at: new Date().toISOString(),
