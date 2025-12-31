@@ -526,7 +526,80 @@ export const authFlowService = {
       },
     });
 
-    if (error) throw error;
+    if (error) {
+      // Se o usuário já existe, tentar fazer login automaticamente
+      if (error.message?.includes('already registered') || error.message?.includes('User already registered')) {
+        console.log('⚠️ [DEBUG] Usuário já existe, tentando fazer login...');
+        try {
+          const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          });
+          
+          if (loginError) {
+            // Se o login falhar, lançar erro específico
+            throw new Error('Este e-mail já está cadastrado. Verifique sua senha ou faça login.');
+          }
+          
+          // Login bem-sucedido, usar os dados do login
+          console.log('✅ [DEBUG] Login automático bem-sucedido para usuário existente');
+          const user = loginData.user;
+          
+          if (!user) {
+            throw new Error('Erro ao fazer login.');
+          }
+          
+          // Aguardar um pouco para garantir que a sessão está estabelecida
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Se usou cupom, tentar vincular ao usuário existente
+          if (coupon && user) {
+            // Verificar se já está vinculado
+            const { data: existingLink } = await supabase
+              .from('user_coupon_links')
+              .select('id')
+              .eq('user_id', user.id)
+              .eq('coupon_id', coupon.id)
+              .maybeSingle();
+            
+            if (!existingLink) {
+              // Criar vínculo se não existir
+              const { error: linkError } = await supabase
+                .from('user_coupon_links')
+                .insert({
+                  user_id: user.id,
+                  coupon_id: coupon.id,
+                });
+              
+              if (!linkError) {
+                // Incrementar uso do cupom apenas se o vínculo foi criado
+                await supabase
+                  .from('coupons')
+                  .update({ current_uses: coupon.current_uses + 1 })
+                  .eq('id', coupon.id);
+              }
+            }
+            
+            // Atualizar perfil com dados do cupom
+            await supabase.rpc('create_user_profile', {
+              p_user_id: user.id,
+              p_name: user.email?.split('@')[0] || 'Usuário',
+              p_plan_type: planType,
+              p_subscription_status: subscriptionStatus,
+              p_subscription_expiry: null,
+              p_daily_free_minutes: 15,
+            });
+          }
+          
+          // Retornar dados do login como se fosse um cadastro
+          return { user, session: loginData.session };
+        } catch (loginErr: any) {
+          // Se o login falhar, lançar erro original
+          throw new Error('Este e-mail já está cadastrado. Verifique sua senha ou faça login.');
+        }
+      }
+      throw error;
+    }
 
     const user = data.user;
 

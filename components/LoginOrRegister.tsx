@@ -82,6 +82,22 @@ const LoginOrRegister: React.FC<LoginOrRegisterProps> = ({ inviteCode, onComplet
         if (err instanceof Error) {
           if (err.message.includes('cupom') || err.message.includes('convite')) {
             setError(err.message);
+          } else if (err.message.includes('já está cadastrado') || err.message.includes('already registered')) {
+            // Se o erro indica que o usuário já existe, tentar fazer login automaticamente
+            setError('Este e-mail já está cadastrado. Tentando fazer login...');
+            setIsLoading(true);
+            try {
+              await authService.signIn(email.trim(), password);
+              // Login bem-sucedido, continuar fluxo
+              onComplete();
+            } catch (loginErr: any) {
+              // Se o login falhar, mostrar mensagem clara
+              setError('Este e-mail já está cadastrado. Verifique sua senha ou faça login.');
+              setIsLoginMode(true);
+            } finally {
+              setIsLoading(false);
+            }
+            return;
           } else if (err.message.includes('email')) {
             setError('Este e-mail já está cadastrado. Tente fazer login.');
             setIsLoginMode(true);
