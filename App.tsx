@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { UserProfile, DailyPlan, LogItem, MealItem, WellnessState, AppView, ScanHistoryItem, Gender, ActivityLevel, Goal } from './types';
 import { generateDietPlan } from './services/geminiService';
 import { authService } from './services/supabaseService';
@@ -159,18 +159,53 @@ const App: React.FC = () => {
   const [showTrialExpiredModal, setShowTrialExpiredModal] = useState(false);
   const [isTrialExpired, setIsTrialExpired] = useState(false);
   const [isDevMode, setIsDevMode] = useState(false); // Flag para modo DEV
+  const [isDeveloper, setIsDeveloper] = useState(false); // Flag para desenvolvedor
 
   // --- Effects ---
   
+  // Lista de desenvolvedores com acesso completo
+  const DEVELOPER_EMAILS = [
+    '19brenobernardes@gmail.com',
+    'paulohmorais@hotmail.com'
+  ];
+
+  // Verificar se é desenvolvedor (função memoizada)
+  const checkIsDeveloper = useCallback(async () => {
+    try {
+      const user = await authService.getCurrentUser();
+      if (user && user.email) {
+        const isDev = DEVELOPER_EMAILS.includes(user.email.toLowerCase());
+        setIsDeveloper(isDev);
+        // Se for desenvolvedor, desativar todos os bloqueios
+        if (isDev) {
+          setIsTrialExpired(false);
+          setShowTrialExpiredModal(false);
+          setIsDevMode(true); // Tratar como modo DEV
+        }
+        return isDev;
+      }
+      return false;
+    } catch (error) {
+      console.error('Erro ao verificar desenvolvedor:', error);
+      return false;
+    }
+  }, []);
+
   // Verificar autenticação ao carregar o app
   useEffect(() => {
     const checkAuth = async () => {
       try {
         const user = await authService.getCurrentUser();
         setIsAuthenticated(!!user);
-        if (user && view === 'landing') {
-          // Se já está autenticado, ir para dashboard
-          setView('dashboard');
+        
+        if (user) {
+          // Verificar se é desenvolvedor
+          await checkIsDeveloper();
+          
+          if (view === 'landing') {
+            // Se já está autenticado, ir para dashboard
+            setView('dashboard');
+          }
         }
       } catch (error) {
         console.error('Erro ao verificar autenticação:', error);
@@ -183,10 +218,15 @@ const App: React.FC = () => {
     checkAuth();
     
     // Observar mudanças de autenticação
-    const { data: { subscription } } = authService.onAuthStateChange((user) => {
+    const { data: { subscription } } = authService.onAuthStateChange(async (user) => {
       setIsAuthenticated(!!user);
-      if (!user && view !== 'landing') {
-        setView('landing');
+      if (user) {
+        await checkIsDeveloper();
+      } else {
+        setIsDeveloper(false);
+        if (view !== 'landing') {
+          setView('landing');
+        }
       }
     });
     
@@ -197,8 +237,8 @@ const App: React.FC = () => {
   
   // Verificar status do trial ao carregar o app
   useEffect(() => {
-    // Não verificar trial se estiver em modo DEV
-    if (isDevMode) {
+    // Não verificar trial se estiver em modo DEV ou for desenvolvedor
+    if (isDevMode || isDeveloper) {
       setIsTrialExpired(false);
       setShowTrialExpiredModal(false);
       return;
@@ -220,7 +260,7 @@ const App: React.FC = () => {
     if (view !== 'landing' && view !== 'onboarding') {
       checkTrialStatus();
     }
-  }, [view, isDevMode]);
+  }, [view, isDevMode, isDeveloper]);
   useEffect(() => {
       if (isGenerating) {
           const fruits = ['🍎', '🍌', '🍇', '🍊', '🍓', '🥑', '🥦', '🥕'];
@@ -607,8 +647,8 @@ const App: React.FC = () => {
             <ChatAssistant 
                 onClose={() => setIsChatOpen(false)} 
                 onLiveCall={() => { 
-                    // Não bloquear se estiver em modo DEV
-                    if (!isDevMode && isTrialExpired) {
+                    // Não bloquear se estiver em modo DEV ou for desenvolvedor
+                    if (!isDevMode && !isDeveloper && isTrialExpired) {
                         setShowTrialExpiredModal(true);
                         return;
                     }
@@ -619,7 +659,7 @@ const App: React.FC = () => {
                 dietPlan={dietPlan}
                 dailyLog={dailyLog}
                 onAddFood={handleAddFood}
-                isBlocked={!isDevMode && isTrialExpired}
+                isBlocked={!isDevMode && !isDeveloper && isTrialExpired}
             />
         )}
 
@@ -630,7 +670,7 @@ const App: React.FC = () => {
                 dietPlan={dietPlan}
                 dailyLog={dailyLog}
                 onAddFood={handleAddFood}
-                isBlocked={!isDevMode && isTrialExpired}
+                isBlocked={!isDevMode && !isDeveloper && isTrialExpired}
             />
         )}
 
@@ -642,8 +682,8 @@ const App: React.FC = () => {
             />
         )}
 
-        {/* Bloqueio de funcionalidades se trial expirado (não aplicar em modo DEV) */}
-        {!isDevMode && isTrialExpired && (
+        {/* Bloqueio de funcionalidades se trial expirado (não aplicar em modo DEV ou desenvolvedor) */}
+        {!isDevMode && !isDeveloper && isTrialExpired && (
             <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40 pointer-events-none" />
         )}
 
