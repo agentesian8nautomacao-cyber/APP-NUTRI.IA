@@ -55,55 +55,36 @@ const SurveyModal: React.FC<SurveyModalProps> = ({ onClose, onSubmit }) => {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white rounded-[2.5rem] shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto relative">
-        {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-[#1A4D2E]/10 px-6 py-4 flex items-center justify-between rounded-t-[2.5rem]">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-[#1A4D2E] rounded-full flex items-center justify-center">
-              <span className="text-white font-bold">{step}/3</span>
-            </div>
-            <h2 className="text-xl font-serif text-[#1A4D2E]">Enquete Rápida</h2>
-          </div>
-          <button
-            onClick={onClose}
-            className="text-[#4F6F52] hover:text-[#1A4D2E] transition-colors"
-          >
-            <X size={24} />
-          </button>
-        </div>
+      <div className="bg-white/90 backdrop-blur-xl rounded-[2.5rem] p-8 shadow-2xl border border-white/60 w-full max-w-md relative">
+        <button onClick={onClose} className="absolute top-6 right-6 text-gray-400 hover:text-black">
+          <X size={24} />
+        </button>
 
-        {/* Content */}
-        <div className="p-6">
+        <div className="mt-4">
           {/* Step 1: Como você nos conheceu? */}
           {step === 1 && (
             <div className="space-y-4">
-              <h3 className="text-lg font-bold text-[#1A4D2E] mb-4">
+              <h3 className="text-2xl font-serif text-[#1A4D2E] mb-6 text-center">
                 Como você conheceu o Nutri.ai?
               </h3>
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {[
-                  { value: 'codigo_convite', label: 'Código de Convite (Academia/Personal)' },
-                  { value: 'teste_gratis', label: 'Teste Grátis (3 dias)' },
-                  { value: 'indicacao', label: 'Indicação de amigo/familiar' },
-                  { value: 'redes_sociais', label: 'Redes Sociais' },
-                  { value: 'busca_google', label: 'Busca no Google' },
-                  { value: 'outro', label: 'Outro' }
+                  { value: 'Mídias Sociais', label: 'Mídias Sociais' },
+                  { value: 'Indicação de Amigo', label: 'Indicação de Amigo' },
+                  { value: 'Pesquisa Online', label: 'Pesquisa Online' },
+                  { value: 'Outro', label: 'Outro' }
                 ].map((option) => (
                   <button
                     key={option.value}
                     onClick={() => handleAnswer('howDidYouFindUs', option.value)}
-                    className={`w-full text-left p-4 rounded-2xl border-2 transition-all ${
+                    className={`w-full py-4 px-6 rounded-xl text-lg font-medium transition-all duration-200 flex items-center justify-between ${
                       answers.howDidYouFindUs === option.value
-                        ? 'border-[#1A4D2E] bg-[#1A4D2E]/5'
-                        : 'border-[#1A4D2E]/20 hover:border-[#1A4D2E]/40'
+                        ? 'bg-[#1A4D2E] text-white shadow-md'
+                        : 'bg-[#F5F1E8] text-[#1A4D2E] hover:bg-[#E0D8C7]'
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="text-[#1A4D2E] font-medium">{option.label}</span>
-                      {answers.howDidYouFindUs === option.value && (
-                        <Check className="text-[#1A4D2E]" size={20} />
-                      )}
-                    </div>
+                    {option.label}
+                    {answers.howDidYouFindUs === option.value && <Check size={20} />}
                   </button>
                 ))}
               </div>
@@ -113,33 +94,27 @@ const SurveyModal: React.FC<SurveyModalProps> = ({ onClose, onSubmit }) => {
           {/* Step 2: Qual seu principal objetivo? */}
           {step === 2 && (
             <div className="space-y-4">
-              <h3 className="text-lg font-bold text-[#1A4D2E] mb-4">
+              <h3 className="text-2xl font-serif text-[#1A4D2E] mb-6 text-center">
                 Qual é seu principal objetivo?
               </h3>
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {[
-                  { value: 'perder_peso', label: 'Perder Peso' },
-                  { value: 'ganhar_massa', label: 'Ganhar Massa Muscular' },
-                  { value: 'manter_peso', label: 'Manter o Peso' },
-                  { value: 'melhorar_saude', label: 'Melhorar a Saúde Geral' },
-                  { value: 'aumentar_energia', label: 'Aumentar Energia' },
-                  { value: 'outro', label: 'Outro' }
+                  { value: 'Perder Peso', label: 'Perder Peso' },
+                  { value: 'Ganhar Massa Muscular', label: 'Ganhar Massa Muscular' },
+                  { value: 'Saúde Geral', label: 'Saúde Geral' },
+                  { value: 'Outro', label: 'Outro' }
                 ].map((option) => (
                   <button
                     key={option.value}
                     onClick={() => handleAnswer('mainGoal', option.value)}
-                    className={`w-full text-left p-4 rounded-2xl border-2 transition-all ${
+                    className={`w-full py-4 px-6 rounded-xl text-lg font-medium transition-all duration-200 flex items-center justify-between ${
                       answers.mainGoal === option.value
-                        ? 'border-[#1A4D2E] bg-[#1A4D2E]/5'
-                        : 'border-[#1A4D2E]/20 hover:border-[#1A4D2E]/40'
+                        ? 'bg-[#1A4D2E] text-white shadow-md'
+                        : 'bg-[#F5F1E8] text-[#1A4D2E] hover:bg-[#E0D8C7]'
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="text-[#1A4D2E] font-medium">{option.label}</span>
-                      {answers.mainGoal === option.value && (
-                        <Check className="text-[#1A4D2E]" size={20} />
-                      )}
-                    </div>
+                    {option.label}
+                    {answers.mainGoal === option.value && <Check size={20} />}
                   </button>
                 ))}
               </div>
@@ -149,45 +124,40 @@ const SurveyModal: React.FC<SurveyModalProps> = ({ onClose, onSubmit }) => {
           {/* Step 3: Experiência e Feedback */}
           {step === 3 && (
             <div className="space-y-4">
-              <h3 className="text-lg font-bold text-[#1A4D2E] mb-4">
+              <h3 className="text-2xl font-serif text-[#1A4D2E] mb-6 text-center">
                 Como você avalia sua experiência até agora?
               </h3>
-              <div className="space-y-3 mb-6">
+              <div className="space-y-4 mb-6">
                 {[
-                  { value: 'excelente', label: 'Excelente' },
-                  { value: 'muito_boa', label: 'Muito Boa' },
-                  { value: 'boa', label: 'Boa' },
-                  { value: 'regular', label: 'Regular' },
-                  { value: 'ruim', label: 'Ruim' }
+                  { value: 'Excelente', label: 'Excelente' },
+                  { value: 'Boa', label: 'Boa' },
+                  { value: 'Neutra', label: 'Neutra' },
+                  { value: 'Ruim', label: 'Ruim' }
                 ].map((option) => (
                   <button
                     key={option.value}
                     onClick={() => handleAnswer('experience', option.value)}
-                    className={`w-full text-left p-4 rounded-2xl border-2 transition-all ${
+                    className={`w-full py-4 px-6 rounded-xl text-lg font-medium transition-all duration-200 flex items-center justify-between ${
                       answers.experience === option.value
-                        ? 'border-[#1A4D2E] bg-[#1A4D2E]/5'
-                        : 'border-[#1A4D2E]/20 hover:border-[#1A4D2E]/40'
+                        ? 'bg-[#1A4D2E] text-white shadow-md'
+                        : 'bg-[#F5F1E8] text-[#1A4D2E] hover:bg-[#E0D8C7]'
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="text-[#1A4D2E] font-medium">{option.label}</span>
-                      {answers.experience === option.value && (
-                        <Check className="text-[#1A4D2E]" size={20} />
-                      )}
-                    </div>
+                    {option.label}
+                    {answers.experience === option.value && <Check size={20} />}
                   </button>
                 ))}
               </div>
               
               <div>
                 <label className="block text-sm font-bold text-[#4F6F52] uppercase mb-2">
-                  Feedback (Opcional)
+                  Feedback (opcional)
                 </label>
                 <textarea
                   value={answers.feedback || ''}
                   onChange={(e) => handleAnswer('feedback', e.target.value)}
-                  placeholder="Compartilhe sua opinião ou sugestões..."
-                  className="w-full p-4 rounded-2xl border-2 border-[#1A4D2E]/20 bg-white text-[#1A4D2E] focus:border-[#1A4D2E] focus:ring-4 focus:ring-[#1A4D2E]/10 transition-all resize-none"
+                  placeholder="Compartilhe sua opinião..."
+                  className="w-full p-4 rounded-xl border-2 border-[#1A4D2E]/20 bg-white text-[#1A4D2E] focus:border-[#1A4D2E] focus:ring-4 focus:ring-[#1A4D2E]/10 transition-all"
                   rows={4}
                 />
               </div>
@@ -195,11 +165,11 @@ const SurveyModal: React.FC<SurveyModalProps> = ({ onClose, onSubmit }) => {
           )}
 
           {/* Navigation */}
-          <div className="flex gap-3 mt-6">
+          <div className="mt-8 flex justify-between gap-4">
             {step > 1 && (
               <button
                 onClick={handleBack}
-                className="flex-1 py-3 px-4 rounded-2xl border-2 border-[#1A4D2E]/20 text-[#1A4D2E] font-medium hover:bg-[#1A4D2E]/5 transition-all"
+                className="flex-1 py-4 rounded-xl text-[#1A4D2E] font-bold text-lg border-2 border-[#1A4D2E]/20 hover:bg-[#F5F1E8] transition-colors"
               >
                 Voltar
               </button>
@@ -207,13 +177,13 @@ const SurveyModal: React.FC<SurveyModalProps> = ({ onClose, onSubmit }) => {
             <button
               onClick={handleNext}
               disabled={!canProceed()}
-              className={`flex-1 py-3 px-4 rounded-2xl font-bold text-white transition-all ${
+              className={`flex-1 py-4 rounded-xl font-bold text-lg transition-all duration-300 ${
                 canProceed()
-                  ? 'bg-[#1A4D2E] hover:bg-[#143d24] hover:scale-[1.02]'
+                  ? 'bg-[#1A4D2E] text-white hover:bg-[#143d24] shadow-md'
                   : 'bg-gray-300 text-gray-500 cursor-not-allowed'
               }`}
             >
-              {step === 3 ? 'Enviar' : 'Próximo'}
+              {step < 3 ? 'Próximo' : 'Concluir'}
             </button>
           </div>
         </div>
