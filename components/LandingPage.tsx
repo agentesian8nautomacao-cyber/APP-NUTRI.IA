@@ -6,12 +6,12 @@ import { couponService, authFlowService, authService } from '../services/supabas
 interface LandingPageProps {
   onGetStarted: () => void;
   onAnalyze?: () => void;
-  onDevSkip?: () => void;
   onLogout?: () => void;
   isAuthenticated?: boolean;
+  onShowSurvey?: () => void; // Callback para mostrar enquete após cadastro
 }
 
-const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDevSkip, onLogout, isAuthenticated = false }) => {
+const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onLogout, isAuthenticated = false, onShowSurvey }) => {
   const [screen, setScreen] = useState<'home' | 'login' | 'coupon' | 'register'>('home');
   const [couponCode, setCouponCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -94,6 +94,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDe
               // Criar conta com trial (sem cupom)
               await authFlowService.registerWithInvite(email, password, undefined);
           }
+          
+          // Após cadastro bem-sucedido, verificar se deve mostrar enquete
+          // A enquete será mostrada no App.tsx após login
           alert("Cadastro realizado com sucesso! Faça login para continuar.");
           setScreen('login');
       } catch (error: any) {
@@ -330,14 +333,6 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDe
                                     {isLoggingIn ? 'Entrando...' : 'Entrar'}
                                 </button>
                             </form>
-
-                            {onDevSkip && (
-                                <div className="mt-8 text-center">
-                                    <button onClick={onDevSkip} className="text-xs font-bold text-red-400 hover:text-red-600 underline">
-                                        [DEV] Pular Onboarding
-                                    </button>
-                                </div>
-                            )}
                         </div>
                     </div>
                 </div>

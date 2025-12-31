@@ -1357,4 +1357,82 @@ export const permissionsService = {
   },
 };
 
+// ============================================
+// SERVIÇOS DE ENQUETE
+// ============================================
+
+export const surveyService = {
+  // Verificar se usuário já respondeu a enquete
+  async hasCompletedSurvey(userId: string): Promise<boolean> {
+    try {
+      // Tentar verificar na tabela user_surveys (se existir)
+      const { data, error } = await supabase
+        .from('user_surveys')
+        .select('id')
+        .eq('user_id', userId)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') return false; // Não encontrado = não respondeu
+        // Se a tabela não existir, verificar em user_profiles
+        if (error.code === '42P01') {
+          const { data: profile } = await supabase
+            .from('user_profiles')
+            .select('survey_completed')
+            .eq('user_id', userId)
+            .single();
+          return profile?.survey_completed || false;
+        }
+        throw error;
+      }
+
+      return !!data;
+    } catch (error) {
+      console.error('Erro ao verificar enquete:', error);
+      return false;
+    }
+  },
+
+  // Salvar respostas da enquete
+  async saveSurvey(userId: string, answers: {
+    howDidYouFindUs: string;
+    mainGoal: string;
+    experience: string;
+    feedback?: string;
+  }): Promise<void> {
+    try {
+      // Tentar salvar na tabela user_surveys (se existir)
+      const { error } = await supabase
+        .from('user_surveys')
+        .insert({
+          user_id: userId,
+          how_did_you_find_us: answers.howDidYouFindUs,
+          main_goal: answers.mainGoal,
+          experience: answers.experience,
+          feedback: answers.feedback || null,
+          completed_at: new Date().toISOString(),
+        });
+
+      if (error) {
+        // Se a tabela não existir, salvar em user_profiles como fallback
+        if (error.code === '42P01') {
+          console.warn('Tabela user_surveys não existe. Salvando em user_profiles...');
+          await supabase
+            .from('user_profiles')
+            .update({
+              survey_completed: true,
+              survey_data: answers,
+            })
+            .eq('user_id', userId);
+        } else {
+          throw error;
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao salvar enquete:', error);
+      // Não quebra o fluxo se houver erro ao salvar enquete
+    }
+  },
+};
+
 

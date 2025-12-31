@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { UserProfile, DailyPlan, LogItem, MealItem, WellnessState, AppView, ScanHistoryItem, Gender, ActivityLevel, Goal } from './types';
 import { generateDietPlan } from './services/geminiService';
-import { authService, planService } from './services/supabaseService';
+import { authService, planService, surveyService } from './services/supabaseService';
 
 // Components
 import LandingPage from './components/LandingPage';
@@ -23,6 +23,7 @@ import ProfileView from './components/ProfileView';
 import SettingsView from './components/SettingsView';
 import PersonalChat from './components/PersonalChat';
 import TrialExpiredModal from './components/TrialExpiredModal';
+import SurveyModal from './components/SurveyModal';
 
 import { MessageCircle, Camera, Home, Menu, BookOpen, Phone, User } from 'lucide-react';
 
@@ -160,6 +161,7 @@ const App: React.FC = () => {
   const [isTrialExpired, setIsTrialExpired] = useState(false);
   const [isDevMode, setIsDevMode] = useState(false); // Flag para modo DEV
   const [isDeveloper, setIsDeveloper] = useState(false); // Flag para desenvolvedor
+  const [showSurvey, setShowSurvey] = useState(false); // Flag para mostrar enquete
 
   // --- Effects ---
   
@@ -388,6 +390,24 @@ const App: React.FC = () => {
   const handleOnboardingComplete = async (profile: UserProfile) => {
     setUserProfile(profile);
     setIsNewUser(true); // Marca como novo usuário após onboarding
+    
+    // Verificar se deve mostrar enquete (após onboarding completo)
+    try {
+      const user = await authService.getCurrentUser();
+      if (user) {
+        const hasCompleted = await surveyService.hasCompletedSurvey(user.id);
+        if (!hasCompleted && !isDeveloper) {
+          console.log('📋 [DEBUG] Mostrando enquete após onboarding');
+          // Mostrar enquete antes de gerar o plano
+          setShowSurvey(true);
+          return; // Não gerar plano ainda, aguardar enquete
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao verificar enquete:', error);
+    }
+    
+    // Se já respondeu enquete ou é desenvolvedor, continuar normalmente
     setView('generating');
     setIsGenerating(true);
     try {
@@ -412,16 +432,6 @@ const App: React.FC = () => {
           console.error("Error regenerating plan", error);
           alert("Erro ao regenerar plano. Tente novamente.");
       }
-  };
-
-  // DEV FUNCTION: Skip generation
-  const handleDevSkip = () => {
-      setIsDevMode(true); // Ativar modo DEV
-      setIsTrialExpired(false); // Garantir que não está bloqueado
-      setShowTrialExpiredModal(false); // Fechar modal se estiver aberto
-      setUserProfile(MOCK_USER);
-      setDietPlan(MOCK_PLAN);
-      setView('dashboard');
   };
 
   const handleAddFood = (item: MealItem, type: string) => {
@@ -574,8 +584,23 @@ const App: React.FC = () => {
                       setDietPlan(MOCK_PLAN);
                     }
                     
-                    console.log('✅ [DEBUG] Redirecionando para dashboard');
-                    setView('dashboard');
+                    console.log('✅ [DEBUG] Verificando se deve mostrar enquete...');
+                    
+                    // Verificar se deve mostrar enquete (novos usuários)
+                    try {
+                      const hasCompleted = await surveyService.hasCompletedSurvey(user.id);
+                      if (!hasCompleted && !isDeveloper) {
+                        console.log('📋 [DEBUG] Mostrando enquete para novo usuário');
+                        // Mostrar enquete antes de ir para dashboard
+                        setShowSurvey(true);
+                      } else {
+                        console.log('✅ [DEBUG] Enquete já respondida ou desenvolvedor, indo para dashboard');
+                        setView('dashboard');
+                      }
+                    } catch (error) {
+                      console.error('❌ [DEBUG] Erro ao verificar enquete:', error);
+                      setView('dashboard');
+                    }
                   } else {
                     console.log('⚠️ [DEBUG] Sem perfil, redirecionando para onboarding');
                     setView('onboarding');
@@ -591,7 +616,6 @@ const App: React.FC = () => {
               }
             }} 
             onAnalyze={() => setIsScannerOpen(true)}
-            onDevSkip={handleDevSkip}
             onLogout={async () => {
               try {
                 await authService.signOut();
@@ -857,6 +881,67 @@ const App: React.FC = () => {
             <TrialExpiredModal
                 onClose={() => setShowTrialExpiredModal(false)}
                 onViewPlans={() => setShowTrialExpiredModal(false)}
+            />
+        )}
+
+        {/* Survey Modal */}
+        {showSurvey && (
+            <SurveyModal
+                onClose={async () => {
+                    setShowSurvey(false);
+                    // Se estava no onboarding, continuar gerando plano
+                    if (isNewUser && userProfile) {
+                        setView('generating');
+                        setIsGenerating(true);
+                        try {
+                            const plan = await generateDietPlan(userProfile);
+                            setDietPlan(plan);
+                            setView('diet_plan');
+                        } catch (error) {
+                            console.error("Failed to generate plan", error);
+                            alert("Ocorreu um erro ao gerar seu plano. Tente novamente.");
+                            setView('onboarding');
+                        } finally {
+                            setIsGenerating(false);
+                        }
+                    } else if (view === 'landing') {
+                        // Se estava na landing, ir para dashboard
+                        setView('dashboard');
+                    }
+                }}
+                onSubmit={async (answers) => {
+                    try {
+                        const user = await authService.getCurrentUser();
+                        if (user) {
+                            await surveyService.saveSurvey(user.id, answers);
+                            console.log('✅ Enquete salva com sucesso');
+                        }
+                    } catch (error) {
+                        console.error('Erro ao salvar enquete:', error);
+                    }
+                    
+                    setShowSurvey(false);
+                    
+                    // Se estava no onboarding, continuar gerando plano
+                    if (isNewUser && userProfile) {
+                        setView('generating');
+                        setIsGenerating(true);
+                        try {
+                            const plan = await generateDietPlan(userProfile);
+                            setDietPlan(plan);
+                            setView('diet_plan');
+                        } catch (error) {
+                            console.error("Failed to generate plan", error);
+                            alert("Ocorreu um erro ao gerar seu plano. Tente novamente.");
+                            setView('onboarding');
+                        } finally {
+                            setIsGenerating(false);
+                        }
+                    } else if (view === 'landing') {
+                        // Se estava na landing, ir para dashboard
+                        setView('dashboard');
+                    }
+                }}
             />
         )}
 
