@@ -247,7 +247,24 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDe
                                     onGetStarted();
                                 } catch (error: any) {
                                     console.error('Erro ao fazer login:', error);
-                                    setLoginError(error.message || 'Email ou senha incorretos. Tente novamente.');
+                                    // Mensagens de erro mais amigáveis
+                                    let errorMessage = 'Email ou senha incorretos. Tente novamente.';
+                                    if (error?.message?.includes('Invalid login credentials') || error?.message?.includes('Invalid')) {
+                                        // Verificar se é um email de desenvolvedor
+                                        const developerEmails = ['19brenobernardes@gmail.com', 'paulohmorais@hotmail.com'];
+                                        const isDeveloperEmail = developerEmails.includes(loginEmail.trim().toLowerCase());
+                                        
+                                        if (isDeveloperEmail) {
+                                            errorMessage = 'Conta não encontrada. Por favor, crie uma conta primeiro usando "Criar Conta" ou "Testar Grátis por 3 dias".';
+                                        } else {
+                                            errorMessage = 'Email ou senha incorretos. Verifique suas credenciais ou crie uma conta.';
+                                        }
+                                    } else if (error?.message?.includes('Email not confirmed')) {
+                                        errorMessage = 'Por favor, confirme seu email antes de fazer login.';
+                                    } else if (error?.message) {
+                                        errorMessage = error.message;
+                                    }
+                                    setLoginError(errorMessage);
                                 } finally {
                                     setIsLoggingIn(false);
                                 }

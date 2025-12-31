@@ -207,9 +207,14 @@ const App: React.FC = () => {
             setView('dashboard');
           }
         }
-      } catch (error) {
-        console.error('Erro ao verificar autenticação:', error);
-        setIsAuthenticated(false);
+      } catch (error: any) {
+        // "Auth session missing" é esperado quando não há sessão - não é um erro crítico
+        if (error?.message?.includes('Auth session missing') || error?.message?.includes('session')) {
+          setIsAuthenticated(false);
+        } else {
+          console.error('Erro ao verificar autenticação:', error);
+          setIsAuthenticated(false);
+        }
       } finally {
         setIsCheckingAuth(false);
       }

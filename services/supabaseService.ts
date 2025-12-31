@@ -134,7 +134,14 @@ export const authService = {
   // Obter usuário atual
   async getCurrentUser() {
     const { data: { user }, error } = await supabase.auth.getUser();
-    if (error) throw error;
+    // Se não houver sessão, retornar null ao invés de lançar erro
+    if (error) {
+      // "Auth session missing" é esperado quando não há sessão
+      if (error.message?.includes('session') || error.message?.includes('Auth session missing')) {
+        return null;
+      }
+      throw error;
+    }
     return user;
   },
 
