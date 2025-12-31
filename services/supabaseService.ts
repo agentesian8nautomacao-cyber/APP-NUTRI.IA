@@ -127,6 +127,11 @@ export const authService = {
       password,
     });
     if (error) throw error;
+    
+    // Aguardar um pouco para garantir que a sessão está estabelecida
+    // Isso ajuda a evitar erros 406 em queries subsequentes
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
     return data;
   },
 
@@ -160,53 +165,53 @@ export const authService = {
   // Obter perfil do usuário atual
   async getCurrentUserProfile(): Promise<UserProfile | null> {
     try {
+      // Verificar sessão primeiro
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (!session || sessionError) {
+        console.warn('Sessão não encontrada ou inválida:', sessionError);
+        return null;
+      }
+
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return null;
 
+      // Usar select=* primeiro (mais compatível)
       const { data, error } = await supabase
         .from('user_profiles')
-        .select(`
-          id,
-          user_id,
-          name,
-          age,
-          gender,
-          height,
-          weight,
-          activity_level,
-          goal,
-          restrictions,
-          meals_per_day,
-          medical_history,
-          routine_description,
-          food_preferences,
-          streak,
-          last_active_date,
-          avatar,
-          chef_avatar
-        `)
+        .select('*')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
       if (error) {
-        // Se for erro 406, tentar método alternativo
-        if (error.code === 'PGRST301' || error.message?.includes('406')) {
-          console.warn('Erro 406 ao buscar perfil, tentando método alternativo...');
-          const { data: fallbackData, error: fallbackError } = await supabase
+        // Se for erro 406, pode ser problema de sessão não sendo reconhecida
+        if (error.code === 'PGRST301' || error.message?.includes('406') || error.status === 406) {
+          console.warn('Erro 406 ao buscar perfil. Tentando recarregar sessão...');
+          
+          // Tentar recarregar a sessão
+          const { data: { session: newSession } } = await supabase.auth.getSession();
+          if (!newSession) {
+            console.error('Sessão não encontrada após recarregar');
+            return null;
+          }
+          
+          // Tentar novamente com select=*
+          const { data: retryData, error: retryError } = await supabase
             .from('user_profiles')
             .select('*')
             .eq('user_id', user.id)
             .maybeSingle();
           
-          if (fallbackError) {
-            if (fallbackError.code === 'PGRST116') return null;
-            throw fallbackError;
+          if (retryError) {
+            if (retryError.code === 'PGRST116') return null;
+            console.error('Erro ao buscar perfil (tentativa 2):', retryError);
+            return null;
           }
-          return fallbackData ? userProfileFromDB(fallbackData) : null;
+          return retryData ? userProfileFromDB(retryData) : null;
         }
         
         if (error.code === 'PGRST116') return null; // Não encontrado
-        throw error;
+        console.error('Erro ao buscar perfil:', error);
+        return null;
       }
 
       return data ? userProfileFromDB(data) : null;
