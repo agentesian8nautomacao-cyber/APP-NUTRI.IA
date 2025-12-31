@@ -113,6 +113,7 @@ const App: React.FC = () => {
   const [view, setView] = useState<AppView>('landing');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingPlan, setIsGeneratingPlan] = useState(false); // Flag para evitar geração duplicada
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
@@ -427,14 +428,33 @@ const App: React.FC = () => {
     }
     
     // Se já respondeu enquete ou é desenvolvedor, continuar normalmente
+    // Evitar geração duplicada
+    if (isGeneratingPlan) {
+      console.log('⏸️ [DEBUG] Geração de plano já em andamento, aguardando...');
+      return;
+    }
+    
     console.log('🔄 [DEBUG] Iniciando geração do plano...');
     setView('generating');
     setIsGenerating(true);
+    setIsGeneratingPlan(true);
     try {
         console.log('🤖 [DEBUG] Chamando generateDietPlan com perfil:', profile);
         const plan = await generateDietPlan(profile);
         console.log('✅ [DEBUG] Plano gerado com sucesso:', plan);
         setDietPlan(plan);
+        
+        // Salvar plano no banco após gerar
+        try {
+          const user = await authService.getCurrentUser();
+          if (user) {
+            await planService.savePlan(plan, user.id);
+            console.log('✅ [DEBUG] Plano salvo no banco');
+          }
+        } catch (saveError) {
+          console.error('❌ [DEBUG] Erro ao salvar plano:', saveError);
+        }
+        
         setView('diet_plan'); // Redirect directly to Diet Plan view
     } catch (error) {
         console.error("❌ [DEBUG] Failed to generate plan:", error);
@@ -442,6 +462,7 @@ const App: React.FC = () => {
         setView('onboarding');
     } finally {
         setIsGenerating(false);
+        setIsGeneratingPlan(false);
     }
   };
 
@@ -588,15 +609,30 @@ const App: React.FC = () => {
                           setDietPlan(MOCK_PLAN);
                         } else {
                           // Para usuários normais, gerar plano (pode demorar)
-                          console.log('🔄 [DEBUG] Gerando novo plano...');
-                          try {
-                            const newPlan = await generateDietPlan(profile);
-                            console.log('✅ [DEBUG] Novo plano gerado');
-                            setDietPlan(newPlan);
-                          } catch (genError) {
-                            console.error('❌ [DEBUG] Erro ao gerar plano:', genError);
-                            // Em caso de erro, usar mock para não travar
-                            setDietPlan(MOCK_PLAN);
+                          // Evitar geração duplicada
+                          if (!isGeneratingPlan) {
+                            setIsGeneratingPlan(true);
+                            console.log('🔄 [DEBUG] Gerando novo plano...');
+                            try {
+                              const newPlan = await generateDietPlan(profile);
+                              console.log('✅ [DEBUG] Novo plano gerado');
+                              setDietPlan(newPlan);
+                              // Salvar plano no banco após gerar
+                              try {
+                                await planService.savePlan(newPlan, user.id);
+                                console.log('✅ [DEBUG] Plano salvo no banco');
+                              } catch (saveError) {
+                                console.error('❌ [DEBUG] Erro ao salvar plano:', saveError);
+                              }
+                            } catch (genError) {
+                              console.error('❌ [DEBUG] Erro ao gerar plano:', genError);
+                              // Em caso de erro, usar mock para não travar
+                              setDietPlan(MOCK_PLAN);
+                            } finally {
+                              setIsGeneratingPlan(false);
+                            }
+                          } else {
+                            console.log('⏸️ [DEBUG] Geração de plano já em andamento, aguardando...');
                           }
                         }
                       }

@@ -826,44 +826,121 @@ export const planService = {
   async getPlan(userId: string, date?: Date): Promise<DailyPlan | null> {
     const planDate = date ? date.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
 
+    // Primeiro, buscar o plano sem relacionamentos (evita erro 406)
     const { data: plan, error } = await supabase
       .from('daily_plans')
-      .select(`
-        *,
-        daily_plan_meals (
-          *,
-          meal_items (*)
-        )
-      `)
+      .select('*')
       .eq('user_id', userId)
       .eq('plan_date', planDate)
-      .single();
+      .maybeSingle();
 
     if (error) {
+      // Se for erro 406, tentar método alternativo
+      if (error.code === 'PGRST301' || error.message?.includes('406') || error.status === 406) {
+        console.warn('Erro 406 ao buscar plano, tentando método alternativo...');
+        const { data: retryPlan, error: retryError } = await supabase
+          .from('daily_plans')
+          .select('id, user_id, plan_date, total_calories, target_protein, target_carbs, target_fats, nutritional_analysis, behavioral_tips, shopping_list, hydration_target, notes')
+          .eq('user_id', userId)
+          .eq('plan_date', planDate)
+          .maybeSingle();
+        
+        if (retryError) {
+          if (retryError.code === 'PGRST116') return null;
+          console.error('Erro ao buscar plano (tentativa 2):', retryError);
+          return null;
+        }
+        
+        if (!retryPlan) return null;
+        
+        // Carregar refeições e itens separadamente
+        const { data: meals, error: mealsError } = await supabase
+          .from('daily_plan_meals')
+          .select('*')
+          .eq('daily_plan_id', retryPlan.id);
+
+        if (mealsError) {
+          console.error('Erro ao buscar refeições:', mealsError);
+          // Continuar mesmo sem refeições
+        } else if (meals && meals.length > 0) {
+          // Carregar itens de cada refeição
+          const mealIds = meals.map((m: any) => m.id);
+          const { data: items, error: itemsError } = await supabase
+            .from('meal_items')
+            .select('*')
+            .in('daily_plan_meal_id', mealIds);
+
+          if (itemsError) {
+            console.error('Erro ao buscar itens:', itemsError);
+          } else {
+            // Associar itens às refeições
+            meals.forEach((meal: any) => {
+              meal.meal_items = items?.filter((item: any) => item.daily_plan_meal_id === meal.id) || [];
+            });
+          }
+        }
+
+        const formattedMeals = meals?.map((meal: any) => ({
+          type: meal.meal_type,
+          items: (meal.meal_items || []).map((item: any) => ({
+            name: item.name,
+            calories: item.calories,
+            macros: {
+              protein: Number(item.protein),
+              carbs: Number(item.carbs),
+              fats: Number(item.fats),
+            },
+            description: item.description || '',
+            substitutions: item.substitutions || [],
+            image: item.image,
+          })),
+        })) || [];
+
+        return dailyPlanFromDB(retryPlan, formattedMeals);
+      }
+      
       if (error.code === 'PGRST116') return null;
       throw error;
     }
 
-    // Carregar refeições e itens
+    if (!plan) return null;
+
+    // Carregar refeições e itens separadamente (evita erro 406)
     const { data: meals, error: mealsError } = await supabase
       .from('daily_plan_meals')
-      .select(`
-        *,
-        meal_items (*)
-      `)
+      .select('*')
       .eq('daily_plan_id', plan.id);
 
-    if (mealsError) throw mealsError;
+    if (mealsError) {
+      console.error('Erro ao buscar refeições:', mealsError);
+      // Continuar mesmo sem refeições
+    } else if (meals && meals.length > 0) {
+      // Carregar itens de cada refeição
+      const mealIds = meals.map((m: any) => m.id);
+      const { data: items, error: itemsError } = await supabase
+        .from('meal_items')
+        .select('*')
+        .in('daily_plan_meal_id', mealIds);
 
-    const formattedMeals = meals.map((meal: any) => ({
+      if (itemsError) {
+        console.error('Erro ao buscar itens:', itemsError);
+      } else {
+        // Associar itens às refeições
+        meals.forEach((meal: any) => {
+          meal.meal_items = items?.filter((item: any) => item.daily_plan_meal_id === meal.id) || [];
+        });
+      }
+    }
+
+    const formattedMeals = (meals || []).map((meal: any) => ({
       type: meal.meal_type,
       items: (meal.meal_items || []).map((item: any) => ({
         name: item.name,
         calories: item.calories,
         macros: {
-          protein: Number(item.protein),
-          carbs: Number(item.carbs),
-          fats: Number(item.fats),
+          protein: Number(item.protein || 0),
+          carbs: Number(item.carbs || 0),
+          fats: Number(item.fats || 0),
         },
         description: item.description || '',
         substitutions: item.substitutions || [],
