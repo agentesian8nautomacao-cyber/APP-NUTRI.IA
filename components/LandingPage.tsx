@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { ArrowLeft, Ticket, ChevronRight, ChefHat, Check, Star, Eye, EyeOff } from 'lucide-react';
-import { couponService, authFlowService } from '../services/supabaseService';
+import { couponService, authFlowService, authService } from '../services/supabaseService';
 
 interface LandingPageProps {
   onGetStarted: () => void;
@@ -15,6 +15,12 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDe
   const [showPassword, setShowPassword] = useState(false);
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
   const [isLoadingCode, setIsLoadingCode] = useState(false);
+  
+  // Login state
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
   
   // Slider State
   const [sliderPosition, setSliderPosition] = useState(0);
@@ -225,24 +231,63 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDe
                             <h2 className="font-serif text-4xl mb-2 text-[#1A4D2E]">Bem-vindo</h2>
                             <p className="text-gray-500 mb-8">Digite suas credenciais para acessar.</p>
                             
-                            <form onSubmit={(e) => { e.preventDefault(); onGetStarted(); }} className="space-y-4">
+                            <form onSubmit={async (e) => { 
+                                e.preventDefault(); 
+                                setLoginError(null);
+                                
+                                if (!loginEmail.trim() || !loginPassword.trim()) {
+                                    setLoginError('Por favor, preencha todos os campos');
+                                    return;
+                                }
+                                
+                                setIsLoggingIn(true);
+                                try {
+                                    await authService.signIn(loginEmail.trim(), loginPassword);
+                                    // Login bem-sucedido - chamar onGetStarted para continuar
+                                    onGetStarted();
+                                } catch (error: any) {
+                                    console.error('Erro ao fazer login:', error);
+                                    setLoginError(error.message || 'Email ou senha incorretos. Tente novamente.');
+                                } finally {
+                                    setIsLoggingIn(false);
+                                }
+                            }} className="space-y-4">
+                                {loginError && (
+                                    <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700 animate-in slide-in-from-top duration-300">
+                                        {loginError}
+                                    </div>
+                                )}
                                 <div>
                                     <label className="block text-xs font-bold uppercase text-gray-400 mb-2 pl-2">Email</label>
-                                    <input type="email" placeholder="seu@email.com" autoComplete="email" className="w-full bg-[#F5F1E8] border border-transparent rounded-2xl p-4 outline-none focus:border-[#1A4D2E] focus:bg-white transition-colors text-[#1A4D2E]" />
+                                    <input 
+                                        type="email" 
+                                        value={loginEmail}
+                                        onChange={(e) => setLoginEmail(e.target.value)}
+                                        placeholder="seu@email.com" 
+                                        autoComplete="email" 
+                                        disabled={isLoggingIn}
+                                        className="w-full bg-[#F5F1E8] border border-transparent rounded-2xl p-4 outline-none focus:border-[#1A4D2E] focus:bg-white transition-colors text-[#1A4D2E] disabled:opacity-50" 
+                                        required
+                                    />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold uppercase text-gray-400 mb-2 pl-2">Senha</label>
                                     <div className="relative">
                                         <input 
                                             type={showPassword ? "text" : "password"} 
+                                            value={loginPassword}
+                                            onChange={(e) => setLoginPassword(e.target.value)}
                                             placeholder="••••••••" 
                                             autoComplete="current-password"
-                                            className="w-full bg-[#F5F1E8] border border-transparent rounded-2xl p-4 pr-12 outline-none focus:border-[#1A4D2E] focus:bg-white transition-colors text-[#1A4D2E]" 
+                                            disabled={isLoggingIn}
+                                            className="w-full bg-[#F5F1E8] border border-transparent rounded-2xl p-4 pr-12 outline-none focus:border-[#1A4D2E] focus:bg-white transition-colors text-[#1A4D2E] disabled:opacity-50" 
+                                            required
                                         />
                                         <button
                                             type="button"
                                             onClick={() => setShowPassword(!showPassword)}
-                                            className="absolute right-4 top-1/2 -translate-y-1/2 text-[#1A4D2E]/60 hover:text-[#1A4D2E] transition-colors"
+                                            disabled={isLoggingIn}
+                                            className="absolute right-4 top-1/2 -translate-y-1/2 text-[#1A4D2E]/60 hover:text-[#1A4D2E] transition-colors disabled:opacity-50"
                                             aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
                                         >
                                             {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
@@ -250,8 +295,12 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onDe
                                     </div>
                                 </div>
                                 
-                                <button type="submit" className="w-full bg-[#1A4D2E] text-white py-5 rounded-2xl font-bold text-lg mt-6 hover:scale-[1.02] transition-transform shadow-lg shadow-[#1A4D2E]/20">
-                                    Entrar
+                                <button 
+                                    type="submit" 
+                                    disabled={isLoggingIn || !loginEmail.trim() || !loginPassword.trim()}
+                                    className="w-full bg-[#1A4D2E] text-white py-5 rounded-2xl font-bold text-lg mt-6 hover:scale-[1.02] transition-transform shadow-lg shadow-[#1A4D2E]/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {isLoggingIn ? 'Entrando...' : 'Entrar'}
                                 </button>
                             </form>
 

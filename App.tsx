@@ -112,6 +112,8 @@ const App: React.FC = () => {
   const [view, setView] = useState<AppView>('landing');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   // Swipe Gesture State
   const [touchStart, setTouchStart] = useState<{x: number, y: number} | null>(null);
@@ -159,6 +161,39 @@ const App: React.FC = () => {
   const [isDevMode, setIsDevMode] = useState(false); // Flag para modo DEV
 
   // --- Effects ---
+  
+  // Verificar autenticação ao carregar o app
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const user = await authService.getCurrentUser();
+        setIsAuthenticated(!!user);
+        if (user && view === 'landing') {
+          // Se já está autenticado, ir para dashboard
+          setView('dashboard');
+        }
+      } catch (error) {
+        console.error('Erro ao verificar autenticação:', error);
+        setIsAuthenticated(false);
+      } finally {
+        setIsCheckingAuth(false);
+      }
+    };
+    
+    checkAuth();
+    
+    // Observar mudanças de autenticação
+    const { data: { subscription } } = authService.onAuthStateChange((user) => {
+      setIsAuthenticated(!!user);
+      if (!user && view !== 'landing') {
+        setView('landing');
+      }
+    });
+    
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
   
   // Verificar status do trial ao carregar o app
   useEffect(() => {
@@ -316,12 +351,51 @@ const App: React.FC = () => {
     }
   };
 
+  // Redirecionar para landing se não estiver autenticado (exceto landing e onboarding)
+  useEffect(() => {
+    if (!isCheckingAuth && view !== 'landing' && view !== 'onboarding' && !isAuthenticated && !isDevMode) {
+      setView('landing');
+    }
+  }, [isCheckingAuth, isAuthenticated, view, isDevMode]);
+
   // --- View Rendering ---
+  
+  // Mostrar loading enquanto verifica autenticação
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen bg-[#F5F1E8] flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1A4D2E] mx-auto mb-4"></div>
+          <p className="text-[#1A4D2E] font-medium">Verificando autenticação...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (view === 'landing') {
       return (
         <LandingPage 
-            onGetStarted={() => setView('onboarding')} 
+            onGetStarted={async () => {
+              // Verificar se está autenticado antes de continuar
+              try {
+                const user = await authService.getCurrentUser();
+                if (user) {
+                  // Verificar se tem perfil
+                  const profile = await authService.getCurrentUserProfile();
+                  if (profile) {
+                    setUserProfile(profile);
+                    setView('dashboard');
+                  } else {
+                    setView('onboarding');
+                  }
+                } else {
+                  setView('onboarding');
+                }
+              } catch (error) {
+                console.error('Erro ao verificar usuário:', error);
+                setView('onboarding');
+              }
+            }} 
             onAnalyze={() => setIsScannerOpen(true)}
             onDevSkip={handleDevSkip}
         />

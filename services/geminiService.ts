@@ -44,7 +44,13 @@ export const generateDietPlan = async (
     attachment?: { data: string, mimeType: string },
     usePantry: boolean = true
 ): Promise<DailyPlan> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  // Verificar se a API_KEY está configurada
+  const apiKey = process.env.API_KEY || import.meta.env.VITE_GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("API_KEY não configurada. Por favor, configure GEMINI_API_KEY nas variáveis de ambiente.");
+  }
+  
+  const ai = new GoogleGenAI({ apiKey });
 
   const schema = {
     type: Type.OBJECT,
