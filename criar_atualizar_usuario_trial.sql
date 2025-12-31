@@ -75,7 +75,7 @@ BEGIN
             0,
             NOW(),
             'free',
-            'FREE', -- Usar 'FREE' temporariamente até adicionar 'trial' à constraint
+            'trial', -- Status trial (agora permitido na constraint)
             (NOW() + INTERVAL '3 days')::TIMESTAMPTZ, -- Trial de 3 dias
             300, -- 5 minutos (300 segundos)
             5, -- 5 minutos diários
@@ -93,7 +93,7 @@ BEGIN
         SET
             name = COALESCE(name, 'Usuário Trial'),
             plan_type = 'free',
-            subscription_status = 'FREE', -- Usar 'FREE' temporariamente até adicionar 'trial' à constraint
+            subscription_status = 'trial', -- Status trial (agora permitido na constraint)
             subscription_expiry = (NOW() + INTERVAL '3 days')::TIMESTAMPTZ,
             voice_daily_limit_seconds = 300,
             daily_free_minutes = 5,
