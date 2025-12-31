@@ -781,11 +781,6 @@ export const authFlowService = {
               voice_daily_limit_seconds: 300,
             }, { onConflict: 'user_id' });
         }
-          
-          if (fallbackError) {
-            console.error('Erro no método alternativo de criação de perfil:', fallbackError);
-          }
-        }
       }
     }
 
