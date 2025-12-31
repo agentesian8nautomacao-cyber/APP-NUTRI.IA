@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { UserProfile, DailyPlan, LogItem, MealItem, WellnessState, AppView, ScanHistoryItem, Gender, ActivityLevel, Goal } from './types';
 import { generateDietPlan } from './services/geminiService';
-import { authService } from './services/supabaseService';
+import { authService, planService } from './services/supabaseService';
 
 // Components
 import LandingPage from './components/LandingPage';
@@ -267,6 +267,110 @@ const App: React.FC = () => {
       checkTrialStatus();
     }
   }, [view, isDevMode, isDeveloper]);
+
+  // Carregar dados do usuário quando view mudar para dashboard
+  useEffect(() => {
+    const loadUserData = async () => {
+      if (view === 'dashboard' && isAuthenticated && (!userProfile || !dietPlan)) {
+        console.log('🔄 [DEBUG] Iniciando carregamento de dados...', { 
+          view, 
+          isAuthenticated, 
+          hasProfile: !!userProfile, 
+          hasPlan: !!dietPlan 
+        });
+        
+        try {
+          const user = await authService.getCurrentUser();
+          if (!user) {
+            console.log('❌ [DEBUG] Usuário não encontrado');
+            // Usar dados mock se não encontrar usuário (modo dev)
+            if (isDeveloper || isDevMode) {
+              console.log('🔧 [DEBUG] Modo DEV: usando dados mock');
+              setUserProfile(MOCK_USER);
+              setDietPlan(MOCK_PLAN);
+            }
+            return;
+          }
+          
+          console.log('✅ [DEBUG] Usuário encontrado:', user.id);
+          
+          // Carregar perfil se não tiver
+          if (!userProfile) {
+            console.log('📋 [DEBUG] Carregando perfil...');
+            try {
+              const profile = await authService.getCurrentUserProfile();
+              if (profile) {
+                console.log('✅ [DEBUG] Perfil carregado:', profile.name);
+                setUserProfile(profile);
+              } else {
+                console.log('⚠️ [DEBUG] Perfil não encontrado, usando mock');
+                // Se for desenvolvedor, usar mock
+                if (isDeveloper || isDevMode) {
+                  setUserProfile(MOCK_USER);
+                }
+              }
+            } catch (profileError) {
+              console.error('❌ [DEBUG] Erro ao carregar perfil:', profileError);
+              // Em caso de erro, usar mock se for desenvolvedor
+              if (isDeveloper || isDevMode) {
+                setUserProfile(MOCK_USER);
+              }
+            }
+          }
+          
+          // Carregar plano se não tiver
+          if (!dietPlan) {
+            console.log('📅 [DEBUG] Carregando plano...');
+            try {
+              const plan = await planService.getPlan(user.id);
+              if (plan) {
+                console.log('✅ [DEBUG] Plano carregado do banco');
+                setDietPlan(plan);
+              } else {
+                console.log('⚠️ [DEBUG] Plano não encontrado no banco');
+                // Se for desenvolvedor, usar mock ao invés de gerar
+                if (isDeveloper || isDevMode) {
+                  console.log('🔧 [DEBUG] Modo DEV: usando plano mock');
+                  setDietPlan(MOCK_PLAN);
+                } else if (userProfile) {
+                  console.log('🔄 [DEBUG] Gerando novo plano...');
+                  // Se não tem plano, gerar um novo (pode demorar)
+                  try {
+                    const newPlan = await generateDietPlan(userProfile);
+                    console.log('✅ [DEBUG] Novo plano gerado');
+                    setDietPlan(newPlan);
+                  } catch (genError) {
+                    console.error('❌ [DEBUG] Erro ao gerar plano:', genError);
+                    // Em caso de erro na geração, usar mock
+                    setDietPlan(MOCK_PLAN);
+                  }
+                } else {
+                  // Se não tem perfil nem plano, usar mock
+                  console.log('🔧 [DEBUG] Sem perfil, usando plano mock');
+                  setDietPlan(MOCK_PLAN);
+                }
+              }
+            } catch (planError) {
+              console.error('❌ [DEBUG] Erro ao carregar plano:', planError);
+              // Em caso de erro, usar mock
+              setDietPlan(MOCK_PLAN);
+            }
+          }
+        } catch (error) {
+          console.error('❌ [DEBUG] Erro geral ao carregar dados:', error);
+          // Em caso de erro crítico, usar dados mock para não travar
+          if (isDeveloper || isDevMode) {
+            console.log('🔧 [DEBUG] Modo DEV: usando dados mock após erro');
+            if (!userProfile) setUserProfile(MOCK_USER);
+            if (!dietPlan) setDietPlan(MOCK_PLAN);
+          }
+        }
+      }
+    };
+    
+    loadUserData();
+  }, [view, isAuthenticated, isDeveloper, isDevMode]);
+
   useEffect(() => {
       if (isGenerating) {
           const fruits = ['🍎', '🍌', '🍇', '🍊', '🍓', '🥑', '🥦', '🥕'];
@@ -423,22 +527,66 @@ const App: React.FC = () => {
         <LandingPage 
             onGetStarted={async () => {
               // Verificar se está autenticado antes de continuar
+              console.log('🚀 [DEBUG] onGetStarted chamado');
               try {
                 const user = await authService.getCurrentUser();
+                console.log('👤 [DEBUG] Usuário:', user ? user.id : 'não encontrado');
+                
                 if (user) {
+                  // Verificar se é desenvolvedor antes de carregar dados
+                  await checkIsDeveloper();
+                  
                   // Verificar se tem perfil
                   const profile = await authService.getCurrentUserProfile();
+                  console.log('📋 [DEBUG] Perfil:', profile ? profile.name : 'não encontrado');
+                  
                   if (profile) {
                     setUserProfile(profile);
+                    
+                    // Carregar plano do dia
+                    try {
+                      const plan = await planService.getPlan(user.id);
+                      if (plan) {
+                        console.log('✅ [DEBUG] Plano carregado do banco');
+                        setDietPlan(plan);
+                      } else {
+                        // Se não tem plano, usar mock para desenvolvedores (não gerar para não travar)
+                        if (isDeveloper || isDevMode) {
+                          console.log('🔧 [DEBUG] Desenvolvedor: usando plano mock');
+                          setDietPlan(MOCK_PLAN);
+                        } else {
+                          // Para usuários normais, gerar plano (pode demorar)
+                          console.log('🔄 [DEBUG] Gerando novo plano...');
+                          try {
+                            const newPlan = await generateDietPlan(profile);
+                            console.log('✅ [DEBUG] Novo plano gerado');
+                            setDietPlan(newPlan);
+                          } catch (genError) {
+                            console.error('❌ [DEBUG] Erro ao gerar plano:', genError);
+                            // Em caso de erro, usar mock para não travar
+                            setDietPlan(MOCK_PLAN);
+                          }
+                        }
+                      }
+                    } catch (planError) {
+                      console.error('❌ [DEBUG] Erro ao carregar plano:', planError);
+                      // Em caso de erro, usar mock para não travar
+                      setDietPlan(MOCK_PLAN);
+                    }
+                    
+                    console.log('✅ [DEBUG] Redirecionando para dashboard');
                     setView('dashboard');
                   } else {
+                    console.log('⚠️ [DEBUG] Sem perfil, redirecionando para onboarding');
                     setView('onboarding');
                   }
                 } else {
+                  console.log('⚠️ [DEBUG] Sem usuário, redirecionando para onboarding');
                   setView('onboarding');
                 }
               } catch (error) {
-                console.error('Erro ao verificar usuário:', error);
+                console.error('❌ [DEBUG] Erro ao verificar usuário:', error);
+                // Em caso de erro, redirecionar para onboarding
                 setView('onboarding');
               }
             }} 
@@ -542,19 +690,30 @@ const App: React.FC = () => {
 
         {/* Main Content Area */}
         <main className={`transition-all duration-300 ${isSidebarOpen ? 'opacity-50 scale-95 origin-right' : ''}`}>
-            {view === 'dashboard' && dietPlan && userProfile && (
-                <Dashboard 
-                    plan={dietPlan} 
-                    user={userProfile} 
-                    dailyLog={dailyLog}
-                    wellness={wellness}
-                    setWellness={setWellness}
-                    onAddFood={handleAddFood}
-                    onAnalyze={() => setIsScannerOpen(true)}
-                    onChat={() => setIsChatOpen(true)}
-                    onNavigate={setView}
-                    onMenuClick={() => setIsSidebarOpen(true)}
-                />
+            {view === 'dashboard' && (
+                <>
+                    {userProfile && dietPlan ? (
+                        <Dashboard 
+                            plan={dietPlan} 
+                            user={userProfile} 
+                            dailyLog={dailyLog}
+                            wellness={wellness}
+                            setWellness={setWellness}
+                            onAddFood={handleAddFood}
+                            onAnalyze={() => setIsScannerOpen(true)}
+                            onChat={() => setIsChatOpen(true)}
+                            onNavigate={setView}
+                            onMenuClick={() => setIsSidebarOpen(true)}
+                        />
+                    ) : (
+                        <div className="min-h-screen bg-[#F5F1E8] flex items-center justify-center">
+                            <div className="text-center">
+                                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1A4D2E] mx-auto mb-4"></div>
+                                <p className="text-[#1A4D2E] font-medium">Carregando seus dados...</p>
+                            </div>
+                        </div>
+                    )}
+                </>
             )}
             {view === 'diet_plan' && dietPlan && (
                 <DietPlanView 

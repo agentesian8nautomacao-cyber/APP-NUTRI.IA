@@ -45,15 +45,17 @@ EMAIL_FROM=Nutri.ai <noreply@nutri.ai>
 Para usar um domínio personalizado:
 
 1. No Resend, vá em **Domains**
-2. Adicione seu domínio (ex: `nutri.ai`)
+2. Adicione seu domínio (ex: `noreply.nutri.ai`)
 3. Configure os registros DNS conforme instruções
 4. Aguarde verificação (pode levar algumas horas)
 5. Atualize `EMAIL_FROM` para usar seu domínio:
    ```
-   EMAIL_FROM=Nutri.ai <noreply@nutri.ai>
+   EMAIL_FROM=Nutri.ai <noreply@noreply.nutri.ai>
    ```
 
 **Sem domínio verificado:** Você pode usar o domínio de teste do Resend (`onboarding@resend.dev`), mas os emails podem ir para spam.
+
+📖 **Guia completo de configuração de domínio**: Veja `CONFIGURAR_DOMINIO_RESEND.md`
 
 ## 📝 Formato do Email
 

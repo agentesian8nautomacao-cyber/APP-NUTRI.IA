@@ -78,7 +78,23 @@ GEMINI_API_KEY=AIzaSy...
 - **Reinicie o servidor** sempre que modificar o `.env.local`
 - As variáveis só são carregadas quando o servidor **inicia**
 
+## 🌐 Para Deploy na Vercel
+
+Se você está vendo este erro na **Vercel (produção)**, o `.env.local` **não funciona** lá.
+
+**Solução**: Configure as variáveis de ambiente diretamente no painel da Vercel.
+
+📖 **Veja o guia completo**: `CONFIGURAR_VARIAVEIS_VERCEL.md`
+
+**Resumo rápido**:
+1. Acesse [vercel.com](https://vercel.com) → Seu Projeto → Settings → Environment Variables
+2. Adicione `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`
+3. Marque todos os ambientes (Production, Preview, Development)
+4. Faça um **Redeploy**
+
 ---
 
-**Solução rápida**: Pare o servidor (Ctrl+C) e execute `npm run dev` novamente.
+**Solução rápida (local)**: Pare o servidor (Ctrl+C) e execute `npm run dev` novamente.
+
+**Solução rápida (Vercel)**: Configure variáveis no painel da Vercel e faça redeploy.
 
