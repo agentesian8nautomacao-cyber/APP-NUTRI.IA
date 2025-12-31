@@ -388,8 +388,24 @@ const App: React.FC = () => {
   // --- Handlers ---
 
   const handleOnboardingComplete = async (profile: UserProfile) => {
+    console.log('🚀 [DEBUG] handleOnboardingComplete chamado com perfil:', profile);
     setUserProfile(profile);
     setIsNewUser(true); // Marca como novo usuário após onboarding
+    
+    // Salvar perfil no Supabase primeiro
+    try {
+      const user = await authService.getCurrentUser();
+      if (user) {
+        console.log('💾 [DEBUG] Salvando perfil no Supabase para usuário:', user.id);
+        await profileService.saveProfile(profile, user.id);
+        console.log('✅ [DEBUG] Perfil salvo com sucesso no Supabase');
+      } else {
+        console.warn('⚠️ [DEBUG] Usuário não encontrado, não foi possível salvar perfil');
+      }
+    } catch (error) {
+      console.error('❌ [DEBUG] Erro ao salvar perfil:', error);
+      // Continuar mesmo se houver erro ao salvar perfil
+    }
     
     // Verificar se deve mostrar enquete (após onboarding completo)
     try {
@@ -401,21 +417,27 @@ const App: React.FC = () => {
           // Mostrar enquete antes de gerar o plano
           setShowSurvey(true);
           return; // Não gerar plano ainda, aguardar enquete
+        } else {
+          console.log('✅ [DEBUG] Enquete já completada ou é desenvolvedor, gerando plano diretamente');
         }
       }
     } catch (error) {
-      console.error('Erro ao verificar enquete:', error);
+      console.error('❌ [DEBUG] Erro ao verificar enquete:', error);
+      // Continuar mesmo se houver erro na verificação da enquete
     }
     
     // Se já respondeu enquete ou é desenvolvedor, continuar normalmente
+    console.log('🔄 [DEBUG] Iniciando geração do plano...');
     setView('generating');
     setIsGenerating(true);
     try {
+        console.log('🤖 [DEBUG] Chamando generateDietPlan com perfil:', profile);
         const plan = await generateDietPlan(profile);
+        console.log('✅ [DEBUG] Plano gerado com sucesso:', plan);
         setDietPlan(plan);
         setView('diet_plan'); // Redirect directly to Diet Plan view
     } catch (error) {
-        console.error("Failed to generate plan", error);
+        console.error("❌ [DEBUG] Failed to generate plan:", error);
         alert("Ocorreu um erro ao gerar seu plano. Tente novamente.");
         setView('onboarding');
     } finally {
