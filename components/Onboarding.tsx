@@ -360,7 +360,11 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
         {/* Footer Actions */}
         <div className="pt-6 pb-8 mt-auto z-10 bg-[#F5F1E8]">
           <button 
-            onClick={handleNext}
+            onClick={() => {
+              console.log('🔘 [DEBUG] Botão clicado! Step:', step, 'Total:', totalSteps);
+              console.log('📋 [DEBUG] Perfil atual:', profile);
+              handleNext();
+            }}
             className="w-full py-5 bg-[#1A4D2E] text-[#F5F1E8] font-serif text-xl rounded-[2rem] hover:shadow-xl hover:-translate-y-1 transition-all"
           >
             {step === totalSteps ? 'Gerar Plano Completo' : 'Continuar'}
