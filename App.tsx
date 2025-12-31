@@ -409,31 +409,9 @@ const App: React.FC = () => {
     }
     
     // Verificar se deve mostrar enquete (após onboarding completo)
-    // Se o perfil já tem dados básicos do onboarding, não mostrar enquete
-    const hasCompleteProfile = profile && profile.name && profile.age && profile.height && profile.weight;
-    
-    if (hasCompleteProfile) {
-      console.log('✅ [DEBUG] Perfil completo do onboarding, gerando plano diretamente (sem enquete)');
-    } else {
-      // Apenas mostrar enquete se não tiver perfil completo
-      try {
-        const user = await authService.getCurrentUser();
-        if (user) {
-          const hasCompleted = await surveyService.hasCompletedSurvey(user.id);
-          if (!hasCompleted && !isDeveloper) {
-            console.log('📋 [DEBUG] Mostrando enquete após onboarding (perfil incompleto)');
-            // Mostrar enquete antes de gerar o plano
-            setShowSurvey(true);
-            return; // Não gerar plano ainda, aguardar enquete
-          } else {
-            console.log('✅ [DEBUG] Enquete já completada ou é desenvolvedor, gerando plano diretamente');
-          }
-        }
-      } catch (error) {
-        console.error('❌ [DEBUG] Erro ao verificar enquete:', error);
-        // Continuar mesmo se houver erro na verificação da enquete
-      }
-    }
+    // Se o usuário fez onboarding, já tem perfil completo, então gerar plano diretamente
+    // A enquete só aparece no primeiro acesso (login/cadastro), não após onboarding
+    console.log('✅ [DEBUG] Onboarding completo, gerando plano diretamente (sem enquete)');
     
     // Se já respondeu enquete ou é desenvolvedor, continuar normalmente
     // Evitar geração duplicada
@@ -652,29 +630,46 @@ const App: React.FC = () => {
                     
                     console.log('✅ [DEBUG] Verificando se deve mostrar enquete...');
                     
-                    // Verificar se deve mostrar enquete (apenas para novos usuários sem perfil completo)
-                    // Se o usuário já tem perfil com dados básicos (nome, idade, altura, peso), não mostrar enquete
-                    const hasCompleteProfile = profile && profile.name && profile.age && profile.height && profile.weight;
-                    
-                    if (hasCompleteProfile) {
-                      console.log('✅ [DEBUG] Usuário já tem perfil completo, indo para dashboard');
-                      setView('dashboard');
-                    } else {
-                      // Verificar se já respondeu enquete
-                      try {
-                        const hasCompleted = await surveyService.hasCompletedSurvey(user.id);
-                        if (!hasCompleted && !isDeveloper) {
-                          console.log('📋 [DEBUG] Mostrando enquete para novo usuário sem perfil completo');
-                          // Mostrar enquete antes de ir para dashboard
-                          setShowSurvey(true);
+                    // Verificar se deve mostrar enquete (para novos usuários que ainda não responderam)
+                    // A enquete coleta dados básicos e gera o plano, então deve aparecer se não foi respondida
+                    try {
+                      const hasCompleted = await surveyService.hasCompletedSurvey(user.id);
+                      if (!hasCompleted && !isDeveloper) {
+                        console.log('📋 [DEBUG] Mostrando enquete para novo usuário (primeiro acesso)');
+                        // Mostrar enquete antes de ir para dashboard
+                        // A enquete vai coletar dados básicos e gerar o plano
+                        setShowSurvey(true);
+                      } else {
+                        // Se já respondeu enquete, verificar se tem plano
+                        if (!dietPlan) {
+                          // Se não tem plano mas tem perfil, gerar plano
+                          if (profile && profile.name && profile.age && profile.height && profile.weight) {
+                            console.log('🔄 [DEBUG] Usuário tem perfil mas não tem plano, gerando...');
+                            setView('generating');
+                            setIsGenerating(true);
+                            try {
+                              const newPlan = await generateDietPlan(profile);
+                              setDietPlan(newPlan);
+                              await planService.savePlan(newPlan, user.id);
+                              setView('diet_plan');
+                            } catch (error) {
+                              console.error('❌ [DEBUG] Erro ao gerar plano:', error);
+                              setView('dashboard');
+                            } finally {
+                              setIsGenerating(false);
+                            }
+                          } else {
+                            console.log('✅ [DEBUG] Enquete já respondida, indo para dashboard');
+                            setView('dashboard');
+                          }
                         } else {
-                          console.log('✅ [DEBUG] Enquete já respondida ou desenvolvedor, indo para dashboard');
+                          console.log('✅ [DEBUG] Enquete já respondida e tem plano, indo para dashboard');
                           setView('dashboard');
                         }
-                      } catch (error) {
-                        console.error('❌ [DEBUG] Erro ao verificar enquete:', error);
-                        setView('dashboard');
                       }
+                    } catch (error) {
+                      console.error('❌ [DEBUG] Erro ao verificar enquete:', error);
+                      setView('dashboard');
                     }
                   } else {
                     console.log('⚠️ [DEBUG] Sem perfil, redirecionando para onboarding');
