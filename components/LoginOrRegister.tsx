@@ -31,10 +31,24 @@ const LoginOrRegister: React.FC<LoginOrRegisterProps> = ({ inviteCode, onComplet
 
       setIsLoading(true);
       try {
+        console.log('🔐 [DEBUG] LoginOrRegister: Tentando fazer login...');
         await authService.signIn(email.trim(), password);
+        console.log('✅ [DEBUG] LoginOrRegister: Login bem-sucedido, chamando onComplete');
         onComplete();
       } catch (err: any) {
-        setError(err.message || 'Erro ao fazer login. Verifique suas credenciais.');
+        console.error('❌ [DEBUG] LoginOrRegister: Erro no login:', err);
+        // Melhorar mensagens de erro
+        let errorMessage = 'Erro ao fazer login. Verifique suas credenciais.';
+        if (err?.message) {
+          if (err.message.includes('Invalid login credentials') || err.message.includes('Email not confirmed')) {
+            errorMessage = 'Email ou senha incorretos. Verifique suas credenciais ou crie uma conta.';
+          } else if (err.message.includes('Email')) {
+            errorMessage = err.message;
+          } else {
+            errorMessage = err.message;
+          }
+        }
+        setError(errorMessage);
       } finally {
         setIsLoading(false);
       }

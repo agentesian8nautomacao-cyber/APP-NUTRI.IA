@@ -122,11 +122,22 @@ export const authService = {
 
   // Fazer login
   async signIn(email: string, password: string) {
+    console.log('🔐 [DEBUG] Tentando fazer login com email:', email);
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
-    if (error) throw error;
+    
+    if (error) {
+      console.error('❌ [DEBUG] Erro no login:', error);
+      // Melhorar mensagens de erro
+      if (error.message?.includes('Invalid login credentials') || error.message?.includes('Email not confirmed')) {
+        throw new Error('Email ou senha incorretos. Verifique suas credenciais ou crie uma conta.');
+      }
+      throw error;
+    }
+    
+    console.log('✅ [DEBUG] Login bem-sucedido para:', data.user?.email);
     
     // Aguardar um pouco para garantir que a sessão está estabelecida
     // Isso ajuda a evitar erros 406 em queries subsequentes
