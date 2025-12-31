@@ -156,11 +156,19 @@ const App: React.FC = () => {
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [showTrialExpiredModal, setShowTrialExpiredModal] = useState(false);
   const [isTrialExpired, setIsTrialExpired] = useState(false);
+  const [isDevMode, setIsDevMode] = useState(false); // Flag para modo DEV
 
   // --- Effects ---
   
   // Verificar status do trial ao carregar o app
   useEffect(() => {
+    // Não verificar trial se estiver em modo DEV
+    if (isDevMode) {
+      setIsTrialExpired(false);
+      setShowTrialExpiredModal(false);
+      return;
+    }
+
     const checkTrialStatus = async () => {
       try {
         const trialStatus = await authService.checkTrialStatus();
@@ -177,7 +185,7 @@ const App: React.FC = () => {
     if (view !== 'landing' && view !== 'onboarding') {
       checkTrialStatus();
     }
-  }, [view]);
+  }, [view, isDevMode]);
   useEffect(() => {
       if (isGenerating) {
           const fruits = ['🍎', '🍌', '🍇', '🍊', '🍓', '🥑', '🥦', '🥕'];
@@ -223,6 +231,9 @@ const App: React.FC = () => {
 
   // DEV FUNCTION: Skip generation
   const handleDevSkip = () => {
+      setIsDevMode(true); // Ativar modo DEV
+      setIsTrialExpired(false); // Garantir que não está bloqueado
+      setShowTrialExpiredModal(false); // Fechar modal se estiver aberto
       setUserProfile(MOCK_USER);
       setDietPlan(MOCK_PLAN);
       setView('dashboard');
@@ -522,7 +533,8 @@ const App: React.FC = () => {
             <ChatAssistant 
                 onClose={() => setIsChatOpen(false)} 
                 onLiveCall={() => { 
-                    if (isTrialExpired) {
+                    // Não bloquear se estiver em modo DEV
+                    if (!isDevMode && isTrialExpired) {
                         setShowTrialExpiredModal(true);
                         return;
                     }
@@ -533,7 +545,7 @@ const App: React.FC = () => {
                 dietPlan={dietPlan}
                 dailyLog={dailyLog}
                 onAddFood={handleAddFood}
-                isBlocked={isTrialExpired}
+                isBlocked={!isDevMode && isTrialExpired}
             />
         )}
 
@@ -544,7 +556,7 @@ const App: React.FC = () => {
                 dietPlan={dietPlan}
                 dailyLog={dailyLog}
                 onAddFood={handleAddFood}
-                isBlocked={isTrialExpired}
+                isBlocked={!isDevMode && isTrialExpired}
             />
         )}
 
@@ -556,8 +568,8 @@ const App: React.FC = () => {
             />
         )}
 
-        {/* Bloqueio de funcionalidades se trial expirado */}
-        {isTrialExpired && (
+        {/* Bloqueio de funcionalidades se trial expirado (não aplicar em modo DEV) */}
+        {!isDevMode && isTrialExpired && (
             <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40 pointer-events-none" />
         )}
 
