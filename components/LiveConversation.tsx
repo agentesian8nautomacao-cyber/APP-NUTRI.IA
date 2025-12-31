@@ -30,7 +30,8 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
     is_vip: false,
   });
   
-  const [hasAccess, setHasAccess] = useState<boolean | null>(null);
+  // Se não estiver bloqueado (modo DEV), permitir acesso imediatamente
+  const [hasAccess, setHasAccess] = useState<boolean | null>(isBlocked ? null : true);
   const [accessError, setAccessError] = useState<string | null>(null);
   const [secondsInCurrentSession, setSecondsInCurrentSession] = useState(0);
   const [isTrialUser, setIsTrialUser] = useState(false); // Detectar se é usuário trial
@@ -121,6 +122,23 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
   // Carregar saldos iniciais do backend e verificar se é trial
   useEffect(() => {
     const loadInitialAccess = async () => {
+      // Se estiver bloqueado (trial expirado), não verificar acesso
+      if (isBlocked) {
+        setHasAccess(false);
+        setAccessError('TRIAL_EXPIRED');
+        return;
+      }
+
+      // Modo DEV: permitir acesso imediatamente sem verificação
+      if (!isBlocked) {
+        setHasAccess(true);
+        setRemainingMinutes({ free: 15, boost: 0, reserve: 0, is_vip: false });
+        setAccessError(null);
+        setStatus("Pronto para conectar");
+        return;
+      }
+
+      // Para usuários normais, verificar acesso
       try {
         // Verificar se é usuário trial
         const { data: { user } } = await supabase.auth.getUser();
@@ -152,7 +170,7 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
     };
     
     loadInitialAccess();
-  }, []);
+  }, [isBlocked]);
 
   // Consumir tempo do backend a cada minuto quando conectado
   useEffect(() => {
@@ -209,8 +227,8 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
       return;
     }
     
-    // If limit reached, do not connect/disconnect existing
-    if (isLimitReached || !hasAccess) {
+    // If limit reached, do not connect/disconnect existing (pular se estiver em modo DEV)
+    if (!isBlocked && (isLimitReached || !hasAccess)) {
         // Stop audio streams if active
         if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
         setStatus(accessError === 'NO_MINUTES_AVAILABLE' ? 'Sem minutos disponíveis' : accessError === 'TRIAL_EXPIRED' ? 'Período de teste expirado' : 'Acesso negado');
@@ -227,17 +245,31 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ onClose, userProfil
           return;
         }
 
-        // Verificar acesso uma última vez antes de conectar
-        const accessCheck = await checkVoiceAccess();
-        if (!accessCheck.hasAccess) {
-          setHasAccess(false);
-          setAccessError(accessCheck.reason || 'NO_ACCESS');
-          setStatus('Sem acesso');
-          return;
-        }
-        
-        if (accessCheck.remaining) {
-          setRemainingMinutes(accessCheck.remaining);
+        // Em modo DEV, pular verificação de acesso e permitir conexão
+        if (!isBlocked && hasAccess === true) {
+          // Modo DEV ou acesso já verificado - permitir conexão
+          setStatus("Conectando...");
+        } else {
+          // Verificar acesso uma última vez antes de conectar (apenas se não for modo DEV)
+          const accessCheck = await checkVoiceAccess();
+          if (!accessCheck.hasAccess) {
+            // Se não tiver acesso mas não estiver bloqueado (modo DEV), permitir mesmo assim
+            if (!isBlocked) {
+              setHasAccess(true);
+              setRemainingMinutes({ free: 15, boost: 0, reserve: 0, is_vip: false });
+              setAccessError(null);
+              setStatus("Conectando...");
+            } else {
+              setHasAccess(false);
+              setAccessError(accessCheck.reason || 'NO_ACCESS');
+              setStatus('Sem acesso');
+              return;
+            }
+          } else {
+            if (accessCheck.remaining) {
+              setRemainingMinutes(accessCheck.remaining);
+            }
+          }
         }
         
         setStatus("Conectando...");
