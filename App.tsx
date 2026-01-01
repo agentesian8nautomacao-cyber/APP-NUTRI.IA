@@ -566,103 +566,108 @@ const App: React.FC = () => {
               // Verificar se está autenticado antes de continuar
               console.log('🚀 [DEBUG] onGetStarted chamado');
               try {
+                // Aguardar um pouco para garantir que a sessão está disponível
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
                 const user = await authService.getCurrentUser();
                 console.log('👤 [DEBUG] Usuário:', user ? user.id : 'não encontrado');
                 
+                if (!user) {
+                  console.error('❌ [DEBUG] Usuário não encontrado após login. Tentando novamente...');
+                  // Tentar mais uma vez após um pequeno delay
+                  await new Promise(resolve => setTimeout(resolve, 300));
+                  const retryUser = await authService.getCurrentUser();
+                  if (!retryUser) {
+                    console.error('❌ [DEBUG] Usuário ainda não encontrado após retry');
+                    alert('Erro ao verificar autenticação. Por favor, tente fazer login novamente.');
+                    setIsProcessingGetStarted(false);
+                    return;
+                  }
+                  // Se encontrou no retry, usar esse usuário
+                  const user = retryUser;
+                }
+                
                 if (user) {
-                  // Verificar se é desenvolvedor antes de carregar dados
-                  await checkIsDeveloper();
+                  // Atualizar estado de autenticação
+                  setIsAuthenticated(true);
+                  // Executar verificações em paralelo para melhorar performance
+                  console.log('✅ [DEBUG] Carregando dados do usuário em paralelo...');
                   
-                  // Verificar se tem perfil
-                  const profile = await authService.getCurrentUserProfile();
+                  const [isDev, profile, hasCompleted] = await Promise.all([
+                    checkIsDeveloper().catch(() => false), // Não bloquear se falhar
+                    authService.getCurrentUserProfile(),
+                    surveyService.hasCompletedSurvey(user.id).catch(() => false), // Não bloquear se falhar
+                  ]);
+                  
                   console.log('📋 [DEBUG] Perfil:', profile ? profile.name : 'não encontrado');
+                  console.log('📋 [DEBUG] Enquete respondida?', hasCompleted);
                   
-                  // PRIMEIRO: Verificar se deve mostrar enquete (para novos usuários que ainda não responderam)
-                  // A enquete coleta dados básicos e gera o plano, então deve aparecer se não foi respondida
-                  // IMPORTANTE: TODOS os usuários (incluindo desenvolvedores) devem ver a enquete no primeiro acesso
-                  console.log('✅ [DEBUG] Verificando se deve mostrar enquete...');
+                  if (!hasCompleted && !showSurvey) {
+                    // NOVO USUÁRIO: Mostrar enquete (primeiro acesso)
+                    // IMPORTANTE: TODOS os usuários (incluindo desenvolvedores) devem ver a enquete no primeiro acesso
+                    console.log('📋 [DEBUG] Mostrando enquete para novo usuário (primeiro acesso)');
+                    // Prevenir múltiplas chamadas
+                    if (!showSurvey) {
+                      setShowSurvey(true);
+                    }
+                    // Não carregar plano nem ir para dashboard ainda - aguardar enquete
+                    // Não definir perfil ainda - a enquete vai coletar os dados
+                    setIsProcessingGetStarted(false);
+                    return;
+                  }
                   
-                  try {
-                    const hasCompleted = await surveyService.hasCompletedSurvey(user.id);
-                    console.log('📋 [DEBUG] Enquete respondida?', hasCompleted);
+                  // USUÁRIO EXISTENTE: Já respondeu enquete, carregar perfil e plano
+                  if (hasCompleted) {
+                    console.log('✅ [DEBUG] Usuário já respondeu enquete, carregando dados...');
                     
-                    if (!hasCompleted && !showSurvey) {
-                      // NOVO USUÁRIO: Mostrar enquete (primeiro acesso)
-                      // IMPORTANTE: TODOS os usuários (incluindo desenvolvedores) devem ver a enquete no primeiro acesso
-                      console.log('📋 [DEBUG] Mostrando enquete para novo usuário (primeiro acesso)');
-                      // Prevenir múltiplas chamadas
-                      if (!showSurvey) {
-                        setShowSurvey(true);
-                      }
-                      // Não carregar plano nem ir para dashboard ainda - aguardar enquete
-                      // Não definir perfil ainda - a enquete vai coletar os dados
-                      setIsProcessingGetStarted(false);
-                      return;
-                    }
-                    
-                    // USUÁRIO EXISTENTE: Já respondeu enquete, carregar perfil e plano
-                    if (hasCompleted) {
-                      console.log('✅ [DEBUG] Usuário já respondeu enquete, carregando dados...');
-                      
-                      // Se tem perfil, definir
-                      if (profile) {
-                        setUserProfile(profile);
-                      }
-                      
-                      // Carregar plano do banco
-                      try {
-                        const plan = await planService.getPlan(user.id);
-                        if (plan) {
-                          console.log('✅ [DEBUG] Plano carregado do banco');
-                          setDietPlan(plan);
-                          // Ir direto para dashboard se tem plano
-                          setView('dashboard');
-                        } else {
-                          // Se não tem plano mas já respondeu enquete, pode ser que o plano não foi gerado ainda
-                          // OU o usuário deletou o plano. Neste caso, NÃO gerar automaticamente em login
-                          // Apenas mostrar dashboard sem plano (usuário pode regenerar manualmente)
-                          console.log('⚠️ [DEBUG] Usuário já respondeu enquete mas não tem plano salvo');
-                          console.log('⚠️ [DEBUG] Não gerando plano automaticamente - usuário pode regenerar manualmente');
-                          setView('dashboard');
-                        }
-                      } catch (planError) {
-                        console.error('❌ [DEBUG] Erro ao carregar plano:', planError);
-                        // Em caso de erro, ir para dashboard mesmo sem plano
-                        setView('dashboard');
-                      }
-                    }
-                  } catch (error) {
-                    console.error('❌ [DEBUG] Erro ao verificar enquete:', error);
-                    // Em caso de erro, tentar carregar plano e ir para dashboard
+                    // Se tem perfil, definir
                     if (profile) {
                       setUserProfile(profile);
                     }
+                    
+                    // Carregar plano do banco
                     try {
                       const plan = await planService.getPlan(user.id);
                       if (plan) {
+                        console.log('✅ [DEBUG] Plano carregado do banco');
                         setDietPlan(plan);
+                        // Ir direto para dashboard se tem plano
+                        setView('dashboard');
+                      } else {
+                        // Se não tem plano mas já respondeu enquete, pode ser que o plano não foi gerado ainda
+                        // OU o usuário deletou o plano. Neste caso, NÃO gerar automaticamente em login
+                        // Apenas mostrar dashboard sem plano (usuário pode regenerar manualmente)
+                        console.log('⚠️ [DEBUG] Usuário já respondeu enquete mas não tem plano salvo');
+                        console.log('⚠️ [DEBUG] Não gerando plano automaticamente - usuário pode regenerar manualmente');
+                        setView('dashboard');
                       }
                     } catch (planError) {
-                      console.error('❌ [DEBUG] Erro ao carregar plano após erro na enquete:', planError);
+                      console.error('❌ [DEBUG] Erro ao carregar plano:', planError);
+                      // Em caso de erro, ir para dashboard mesmo sem plano
+                      setView('dashboard');
                     }
-                    setView('dashboard');
                   }
                   
                   // Se chegou aqui e não retornou, significa que já respondeu enquete
                   // Mas se não tem perfil, redirecionar para onboarding
                   if (!profile) {
-                  } else {
                     console.log('⚠️ [DEBUG] Sem perfil, redirecionando para onboarding');
                     setView('onboarding');
                   }
+                  // Se tem perfil e já respondeu enquete, já foi redirecionado para dashboard acima
                 } else {
-                  console.log('⚠️ [DEBUG] Sem usuário, redirecionando para onboarding');
-                  setView('onboarding');
+                  console.log('⚠️ [DEBUG] Sem usuário após todas as tentativas');
+                  alert('Erro ao verificar autenticação. Por favor, tente fazer login novamente.');
+                  setIsProcessingGetStarted(false);
                 }
               } catch (error) {
                 console.error('❌ [DEBUG] Erro ao verificar usuário:', error);
-                // Em caso de erro, redirecionar para onboarding
-                setView('onboarding');
+                // Em caso de erro, mostrar mensagem e manter na landing
+                alert('Erro ao verificar autenticação. Por favor, tente fazer login novamente.');
+                setIsProcessingGetStarted(false);
+              } finally {
+                // Garantir que a flag seja resetada mesmo em caso de erro
+                setIsProcessingGetStarted(false);
               }
             }} 
             onAnalyze={() => setIsScannerOpen(true)}

@@ -263,7 +263,23 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onLo
                                 
                                 setIsLoggingIn(true);
                                 try {
+                                    console.log('🔐 [DEBUG] LandingPage: Iniciando login...');
                                     await authService.signIn(loginEmail.trim(), loginPassword);
+                                    console.log('✅ [DEBUG] LandingPage: Login bem-sucedido');
+                                    
+                                    // Aguardar um pouco para garantir que a sessão está estabelecida
+                                    // e o estado de autenticação foi atualizado
+                                    await new Promise(resolve => setTimeout(resolve, 200));
+                                    
+                                    // Verificar se a sessão está realmente disponível
+                                    const { authService: auth } = await import('../services/supabaseService');
+                                    const user = await auth.getCurrentUser();
+                                    
+                                    if (!user) {
+                                        throw new Error('Sessão não estabelecida. Tente fazer login novamente.');
+                                    }
+                                    
+                                    console.log('✅ [DEBUG] LandingPage: Sessão confirmada, chamando onGetStarted');
                                     // Login bem-sucedido - chamar onGetStarted para continuar
                                     onGetStarted();
                                 } catch (error: any) {
