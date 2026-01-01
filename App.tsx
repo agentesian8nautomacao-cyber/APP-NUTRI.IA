@@ -600,9 +600,30 @@ const App: React.FC = () => {
                 console.log('📋 [DEBUG] Perfil:', profile ? profile.name : 'não encontrado');
                 console.log('📋 [DEBUG] É desenvolvedor?', isDev);
                   
-                // Se for desenvolvedor e já tem perfil completo, pular onboarding
-                if (isDev && profile && profile.name && profile.age && profile.height && profile.weight) {
-                  console.log('🔧 [DEBUG] Desenvolvedor com perfil completo, pulando onboarding');
+                // Função auxiliar para verificar se o perfil tem valores padrão do RPC
+                const isDefaultProfile = (p: any) => {
+                  if (!p) return false;
+                  // Verificar goal como string ou enum
+                  const goalIsDefault = p.goal === 'General Health' || p.goal === Goal.ImproveHealth;
+                  return p.age === 30 && 
+                         p.height === 170 && 
+                         p.weight === 70 && 
+                         (p.gender === 'Other' || p.gender === Gender.Other) && 
+                         goalIsDefault;
+                };
+                  
+                // Função auxiliar para verificar se o perfil está completo (com dados reais, não padrões)
+                const isProfileComplete = (p: any) => {
+                  if (!p) return false;
+                  // Verificar se tem dados básicos
+                  if (!p.name || !p.age || !p.height || !p.weight) return false;
+                  // Verificar se NÃO são valores padrão do RPC
+                  return !isDefaultProfile(p);
+                };
+                  
+                // Se for desenvolvedor e já tem perfil completo (com dados reais), pular onboarding
+                if (isDev && isProfileComplete(profile)) {
+                  console.log('🔧 [DEBUG] Desenvolvedor com perfil completo (dados reais), pulando onboarding');
                   setUserProfile(profile);
                   // Carregar plano se existir
                   try {
@@ -622,9 +643,9 @@ const App: React.FC = () => {
                   return;
                 }
                   
-                // Se tem perfil completo, ir direto para dashboard
-                if (profile && profile.name && profile.age && profile.height && profile.weight) {
-                  console.log('✅ [DEBUG] Usuário com perfil completo, carregando dados...');
+                // Se tem perfil completo (com dados reais, não padrões), ir direto para dashboard
+                if (isProfileComplete(profile)) {
+                  console.log('✅ [DEBUG] Usuário com perfil completo (dados reais), carregando dados...');
                   setUserProfile(profile);
                   
                   // Carregar plano do banco
