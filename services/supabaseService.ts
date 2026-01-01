@@ -793,49 +793,19 @@ export const authFlowService = {
       // Criar perfil com trial
       // A função RPC já verifica se o perfil existe e faz UPDATE se existir, então não precisa verificar antes
       try {
-          const { data: profileData, error: trialError } = await supabase.rpc('create_user_profile', {
-            p_user_id: user.id,
-            p_name: user.email?.split('@')[0] || 'Usuário',
-            p_plan_type: 'free',
-            p_subscription_status: 'trial',
-            p_subscription_expiry: expiryDate.toISOString(),
-            p_daily_free_minutes: 5, // 5 minutos = 300 segundos (trial tem menos tempo)
-          });
+        const { data: profileData, error: trialError } = await supabase.rpc('create_user_profile', {
+          p_user_id: user.id,
+          p_name: user.email?.split('@')[0] || 'Usuário',
+          p_plan_type: 'free',
+          p_subscription_status: 'trial',
+          p_subscription_expiry: expiryDate.toISOString(),
+          p_daily_free_minutes: 5, // 5 minutos = 300 segundos (trial tem menos tempo)
+        });
 
-          if (trialError) {
-            console.error('Erro ao criar perfil com trial (RPC):', trialError);
-            console.error('Detalhes do erro:', JSON.stringify(trialError, null, 2));
-            // Tentar método alternativo se RPC falhar
-            const { error: fallbackError } = await supabase
-              .from('user_profiles')
-              .upsert({
-                user_id: user.id,
-                name: user.email?.split('@')[0] || 'Usuário',
-                age: 30,
-                gender: 'Other',
-                height: 170,
-                weight: 70,
-                activity_level: 'Light',
-                goal: 'General Health',
-                meals_per_day: 3,
-                plan_type: 'free',
-                subscription_status: 'trial',
-                subscription_expiry: expiryDate.toISOString(),
-                daily_free_minutes: 5,
-                voice_daily_limit_seconds: 300,
-              }, { onConflict: 'user_id' });
-            
-            if (fallbackError) {
-              console.error('Erro ao criar perfil com trial (fallback):', fallbackError);
-            } else {
-              console.log('✅ [DEBUG] Perfil criado com sucesso usando método fallback');
-            }
-          } else {
-            console.log('✅ [DEBUG] Perfil criado/atualizado com sucesso via RPC');
-          }
-        } catch (rpcError: any) {
-          console.error('Erro ao chamar RPC create_user_profile (trial):', rpcError);
-          // Tentar método alternativo direto
+        if (trialError) {
+          console.error('Erro ao criar perfil com trial (RPC):', trialError);
+          console.error('Detalhes do erro:', JSON.stringify(trialError, null, 2));
+          // Tentar método alternativo se RPC falhar
           const { error: fallbackError } = await supabase
             .from('user_profiles')
             .upsert({
@@ -856,10 +826,39 @@ export const authFlowService = {
             }, { onConflict: 'user_id' });
           
           if (fallbackError) {
-            console.error('Erro ao criar perfil com trial (fallback após catch):', fallbackError);
+            console.error('Erro ao criar perfil com trial (fallback):', fallbackError);
           } else {
-            console.log('✅ [DEBUG] Perfil criado com sucesso usando método fallback após catch');
+            console.log('✅ [DEBUG] Perfil criado com sucesso usando método fallback');
           }
+        } else {
+          console.log('✅ [DEBUG] Perfil criado/atualizado com sucesso via RPC');
+        }
+      } catch (rpcError: any) {
+        console.error('Erro ao chamar RPC create_user_profile (trial):', rpcError);
+        // Tentar método alternativo direto
+        const { error: fallbackError } = await supabase
+          .from('user_profiles')
+          .upsert({
+            user_id: user.id,
+            name: user.email?.split('@')[0] || 'Usuário',
+            age: 30,
+            gender: 'Other',
+            height: 170,
+            weight: 70,
+            activity_level: 'Light',
+            goal: 'General Health',
+            meals_per_day: 3,
+            plan_type: 'free',
+            subscription_status: 'trial',
+            subscription_expiry: expiryDate.toISOString(),
+            daily_free_minutes: 5,
+            voice_daily_limit_seconds: 300,
+          }, { onConflict: 'user_id' });
+        
+        if (fallbackError) {
+          console.error('Erro ao criar perfil com trial (fallback após catch):', fallbackError);
+        } else {
+          console.log('✅ [DEBUG] Perfil criado com sucesso usando método fallback após catch');
         }
       }
     }
