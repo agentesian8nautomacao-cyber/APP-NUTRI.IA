@@ -670,12 +670,31 @@ const App: React.FC = () => {
                         // Ir direto para dashboard se tem plano
                         setView('dashboard');
                       } else {
-                        // Se não tem plano mas já respondeu enquete, pode ser que o plano não foi gerado ainda
-                        // OU o usuário deletou o plano. Neste caso, NÃO gerar automaticamente em login
-                        // Apenas mostrar dashboard sem plano (usuário pode regenerar manualmente)
-                        console.log('⚠️ [DEBUG] Usuário já respondeu enquete mas não tem plano salvo');
-                        console.log('⚠️ [DEBUG] Não gerando plano automaticamente - usuário pode regenerar manualmente');
-                        setView('dashboard');
+                        // Se não tem plano mas já respondeu enquete, verificar se é primeiro acesso
+                        // Se o perfil tem dados completos mas não tem plano, gerar automaticamente
+                        if (profile && profile.name && profile.age && profile.height && profile.weight) {
+                          console.log('🔄 [DEBUG] Perfil completo mas sem plano - gerando plano automaticamente...');
+                          setIsGenerating(true);
+                          try {
+                            const newPlan = await generateDietPlan(profile);
+                            setDietPlan(newPlan);
+                            // Salvar plano no banco
+                            await planService.savePlan(user.id, newPlan);
+                            console.log('✅ [DEBUG] Plano gerado e salvo com sucesso');
+                            setView('dashboard');
+                          } catch (planError) {
+                            console.error('❌ [DEBUG] Erro ao gerar plano:', planError);
+                            // Em caso de erro, mostrar dashboard mesmo sem plano
+                            setView('dashboard');
+                          } finally {
+                            setIsGenerating(false);
+                          }
+                        } else {
+                          // Se não tem dados completos, apenas mostrar dashboard
+                          console.log('⚠️ [DEBUG] Usuário já respondeu enquete mas não tem plano salvo');
+                          console.log('⚠️ [DEBUG] Perfil incompleto - não gerando plano automaticamente');
+                          setView('dashboard');
+                        }
                       }
                     } catch (planError) {
                       console.error('❌ [DEBUG] Erro ao carregar plano:', planError);

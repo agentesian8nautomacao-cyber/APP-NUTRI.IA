@@ -640,14 +640,49 @@ export const authFlowService = {
             }
             
             // Atualizar perfil com dados do cupom
-            await supabase.rpc('create_user_profile', {
-              p_user_id: user.id,
-              p_name: user.email?.split('@')[0] || 'Usuário',
-              p_plan_type: planType,
-              p_subscription_status: subscriptionStatus,
-              p_subscription_expiry: null,
-              p_daily_free_minutes: 15,
-            });
+            // Primeiro verificar se o perfil já existe
+            const { data: existingProfileForCoupon } = await supabase
+              .from('user_profiles')
+              .select('id')
+              .eq('user_id', user.id)
+              .maybeSingle();
+
+            if (!existingProfileForCoupon) {
+              // Só criar se não existir
+              const { error: rpcError } = await supabase.rpc('create_user_profile', {
+                p_user_id: user.id,
+                p_name: user.email?.split('@')[0] || 'Usuário',
+                p_plan_type: planType,
+                p_subscription_status: subscriptionStatus,
+                p_subscription_expiry: null,
+                p_daily_free_minutes: 15,
+              });
+              
+              if (rpcError) {
+                console.error('Erro ao criar perfil com cupom (RPC):', rpcError);
+                // Tentar método alternativo
+                await supabase
+                  .from('user_profiles')
+                  .upsert({
+                    user_id: user.id,
+                    name: user.email?.split('@')[0] || 'Usuário',
+                    plan_type: planType,
+                    subscription_status: subscriptionStatus,
+                    subscription_expiry: null,
+                    daily_free_minutes: 15,
+                  }, { onConflict: 'user_id' });
+              }
+            } else {
+              // Se já existe, apenas atualizar campos de assinatura
+              await supabase
+                .from('user_profiles')
+                .update({
+                  plan_type: planType,
+                  subscription_status: subscriptionStatus,
+                  subscription_expiry: null,
+                })
+                .eq('user_id', user.id);
+            }
           }
           
           // Retornar dados do login como se fosse um cadastro
@@ -697,20 +732,46 @@ export const authFlowService = {
       }
 
       // Criar ou atualizar perfil usando função RPC (bypass RLS)
-      try {
-        const { error: profileError } = await supabase.rpc('create_user_profile', {
-          p_user_id: user.id,
-          p_name: user.email?.split('@')[0] || 'Usuário',
-          p_plan_type: planType,
-          p_subscription_status: subscriptionStatus,
-          p_subscription_expiry: null,
-          p_daily_free_minutes: 15, // Premium tem 15 minutos
-        });
+      // Primeiro verificar se o perfil já existe
+      const { data: existingProfileForCoupon } = await supabase
+        .from('user_profiles')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle();
 
-        if (profileError) {
-          console.error('Erro ao criar/atualizar perfil com cupom (RPC):', profileError);
-          // Tentar método alternativo
-          const { error: fallbackError } = await supabase
+      if (!existingProfileForCoupon) {
+        // Só criar se não existir
+        try {
+          const { error: profileError } = await supabase.rpc('create_user_profile', {
+            p_user_id: user.id,
+            p_name: user.email?.split('@')[0] || 'Usuário',
+            p_plan_type: planType,
+            p_subscription_status: subscriptionStatus,
+            p_subscription_expiry: null,
+            p_daily_free_minutes: 15, // Premium tem 15 minutos
+          });
+
+          if (profileError) {
+            console.error('Erro ao criar perfil com cupom (RPC):', profileError);
+            // Tentar método alternativo
+            const { error: fallbackError } = await supabase
+              .from('user_profiles')
+              .upsert({
+                user_id: user.id,
+                name: user.email?.split('@')[0] || 'Usuário',
+                plan_type: planType,
+                subscription_status: subscriptionStatus,
+                daily_free_minutes: 15,
+              }, { onConflict: 'user_id' });
+            
+            if (fallbackError) {
+              console.error('Erro ao criar perfil com cupom (fallback):', fallbackError);
+            }
+          }
+        } catch (rpcError: any) {
+          console.error('Erro ao chamar RPC create_user_profile (cupom):', rpcError);
+          // Tentar método alternativo direto
+          await supabase
             .from('user_profiles')
             .upsert({
               user_id: user.id,
@@ -719,23 +780,18 @@ export const authFlowService = {
               subscription_status: subscriptionStatus,
               daily_free_minutes: 15,
             }, { onConflict: 'user_id' });
-          
-          if (fallbackError) {
-            console.error('Erro ao criar/atualizar perfil com cupom (fallback):', fallbackError);
-          }
         }
-      } catch (rpcError: any) {
-        console.error('Erro ao chamar RPC create_user_profile (cupom):', rpcError);
-        // Tentar método alternativo direto
+      } else {
+        // Se já existe, apenas atualizar campos de assinatura
+        console.log('✅ [DEBUG] Perfil já existe, atualizando dados de assinatura...');
         await supabase
           .from('user_profiles')
-          .upsert({
-            user_id: user.id,
-            name: user.email?.split('@')[0] || 'Usuário',
+          .update({
             plan_type: planType,
             subscription_status: subscriptionStatus,
-            daily_free_minutes: 15,
-          }, { onConflict: 'user_id' });
+            subscription_expiry: null,
+          })
+          .eq('user_id', user.id);
       }
     } else {
       // SEM CUPOM = TRIAL GRÁTIS
@@ -767,20 +823,55 @@ export const authFlowService = {
         }
       } else {
         // Criar perfil com trial usando função RPC (bypass RLS)
-        try {
-          const { data: profileData, error: trialError } = await supabase.rpc('create_user_profile', {
-            p_user_id: user.id,
-            p_name: user.email?.split('@')[0] || 'Usuário',
-            p_plan_type: 'free',
-            p_subscription_status: 'trial',
-            p_subscription_expiry: expiryDate.toISOString(),
-            p_daily_free_minutes: 5, // 5 minutos = 300 segundos (trial tem menos tempo)
-          });
+        // Primeiro verificar se o perfil já existe
+        const { data: existingProfile } = await supabase
+          .from('user_profiles')
+          .select('id')
+          .eq('user_id', user.id)
+          .maybeSingle();
 
-          if (trialError) {
-            console.error('Erro ao criar perfil com trial (RPC):', trialError);
-            // Tentar método alternativo se RPC falhar
-            const { error: fallbackError } = await supabase
+        if (!existingProfile) {
+          // Só criar se não existir
+          try {
+            const { data: profileData, error: trialError } = await supabase.rpc('create_user_profile', {
+              p_user_id: user.id,
+              p_name: user.email?.split('@')[0] || 'Usuário',
+              p_plan_type: 'free',
+              p_subscription_status: 'trial',
+              p_subscription_expiry: expiryDate.toISOString(),
+              p_daily_free_minutes: 5, // 5 minutos = 300 segundos (trial tem menos tempo)
+            });
+
+            if (trialError) {
+              console.error('Erro ao criar perfil com trial (RPC):', trialError);
+              // Tentar método alternativo se RPC falhar
+              const { error: fallbackError } = await supabase
+                .from('user_profiles')
+                .upsert({
+                  user_id: user.id,
+                  name: user.email?.split('@')[0] || 'Usuário',
+                  age: 30,
+                  gender: 'Other',
+                  height: 170,
+                  weight: 70,
+                  activity_level: 'Light',
+                  goal: 'General Health',
+                  meals_per_day: 3,
+                  plan_type: 'free',
+                  subscription_status: 'trial',
+                  subscription_expiry: expiryDate.toISOString(),
+                  daily_free_minutes: 5,
+                  voice_daily_limit_seconds: 300,
+                }, { onConflict: 'user_id' });
+              
+              if (fallbackError) {
+                console.error('Erro ao criar perfil com trial (fallback):', fallbackError);
+              }
+            }
+          } catch (rpcError: any) {
+            console.error('Erro ao chamar RPC create_user_profile (trial):', rpcError);
+            // Tentar método alternativo direto
+            await supabase
               .from('user_profiles')
               .upsert({
                 user_id: user.id,
@@ -798,32 +889,18 @@ export const authFlowService = {
                 daily_free_minutes: 5,
                 voice_daily_limit_seconds: 300,
               }, { onConflict: 'user_id' });
-            
-            if (fallbackError) {
-              console.error('Erro ao criar perfil com trial (fallback):', fallbackError);
-            }
           }
-        } catch (rpcError: any) {
-          console.error('Erro ao chamar RPC create_user_profile (trial):', rpcError);
-          // Tentar método alternativo direto
+        } else {
+          // Se já existe, apenas atualizar campos de assinatura se necessário
+          console.log('✅ [DEBUG] Perfil já existe, atualizando dados de trial...');
           await supabase
             .from('user_profiles')
-            .upsert({
-              user_id: user.id,
-              name: user.email?.split('@')[0] || 'Usuário',
-              age: 30,
-              gender: 'Other',
-              height: 170,
-              weight: 70,
-              activity_level: 'Light',
-              goal: 'General Health',
-              meals_per_day: 3,
-              plan_type: 'free',
+            .update({
               subscription_status: 'trial',
               subscription_expiry: expiryDate.toISOString(),
               daily_free_minutes: 5,
-              voice_daily_limit_seconds: 300,
-            }, { onConflict: 'user_id' });
+            })
+            .eq('user_id', user.id);
         }
       }
     }
