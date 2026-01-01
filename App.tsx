@@ -567,7 +567,7 @@ const App: React.FC = () => {
               console.log('🚀 [DEBUG] onGetStarted chamado');
               try {
                 // Aguardar um pouco para garantir que a sessão está disponível
-                await new Promise(resolve => setTimeout(resolve, 200));
+                await new Promise(resolve => setTimeout(resolve, 100));
                 
                 let user = await authService.getCurrentUser();
                 console.log('👤 [DEBUG] Usuário (primeira tentativa):', user ? user.id : 'não encontrado');
@@ -575,7 +575,7 @@ const App: React.FC = () => {
                 if (!user) {
                   console.error('❌ [DEBUG] Usuário não encontrado após login. Tentando novamente...');
                   // Tentar mais uma vez após um pequeno delay
-                  await new Promise(resolve => setTimeout(resolve, 500));
+                  await new Promise(resolve => setTimeout(resolve, 200));
                   user = await authService.getCurrentUser();
                   console.log('👤 [DEBUG] Usuário (segunda tentativa):', user ? user.id : 'não encontrado');
                   

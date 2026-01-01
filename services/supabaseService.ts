@@ -190,8 +190,8 @@ export const authService = {
     }
     
     // Delay mínimo apenas para garantir que a sessão está persistida no localStorage
-    // Reduzido de 500ms para 100ms - suficiente para persistência sem causar lentidão perceptível
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // Reduzido para 50ms - suficiente para persistência sem causar lentidão perceptível
+    await new Promise(resolve => setTimeout(resolve, 50));
     
     return data;
   },
@@ -1785,13 +1785,30 @@ export const permissionsService = {
 
 export const surveyService = {
   // Verificar se usuário já respondeu a enquete
-  // Se o perfil tiver dados completos (name, age, height, weight), considera como enquete respondida
+  // IMPORTANTE: Não considerar perfil completo se os dados são apenas os padrões do RPC
   async hasCompletedSurvey(userId: string, profile?: any): Promise<boolean> {
     try {
-      // Se o perfil foi passado e tem dados completos, considerar como enquete respondida
-      if (profile && profile.name && profile.age && profile.height && profile.weight) {
-        console.log('✅ [DEBUG] Perfil completo detectado, considerando enquete respondida');
-        return true;
+      // Se o perfil foi passado, verificar se tem dados REAIS (não apenas padrões do RPC)
+      if (profile) {
+        // Valores padrão do RPC: age: 30, height: 170, weight: 70, gender: 'Other', goal: 'General Health'
+        // Se o perfil tem exatamente esses valores padrão, NÃO considerar como enquete respondida
+        const isDefaultProfile = 
+          profile.age === 30 && 
+          profile.height === 170 && 
+          profile.weight === 70 && 
+          profile.gender === 'Other' && 
+          profile.goal === 'General Health';
+        
+        if (isDefaultProfile) {
+          console.log('⚠️ [DEBUG] Perfil com valores padrão detectado, NÃO considerando enquete respondida');
+          return false;
+        }
+        
+        // Se tem dados completos E não são valores padrão, considerar como enquete respondida
+        if (profile.name && profile.age && profile.height && profile.weight) {
+          console.log('✅ [DEBUG] Perfil completo com dados reais detectado, considerando enquete respondida');
+          return true;
+        }
       }
 
       // Tentar verificar na tabela user_surveys (se existir)
@@ -1856,7 +1873,7 @@ export const surveyService = {
     try {
       const { data: profile, error } = await supabase
         .from('user_profiles')
-        .select('name, age, height, weight, survey_completed')
+        .select('name, age, height, weight, gender, goal, survey_completed')
         .eq('user_id', userId)
         .maybeSingle();
 
@@ -1874,10 +1891,23 @@ export const surveyService = {
         return true;
       }
 
-      // Se perfil tem dados completos (name, age, height, weight), considerar como enquete respondida
+      // Verificar se são valores padrão do RPC
+      const isDefaultProfile = 
+        profile.age === 30 && 
+        profile.height === 170 && 
+        profile.weight === 70 && 
+        profile.gender === 'Other' && 
+        profile.goal === 'General Health';
+
+      if (isDefaultProfile) {
+        console.log('⚠️ [DEBUG] Perfil com valores padrão detectado, NÃO considerando enquete respondida');
+        return false;
+      }
+
+      // Se perfil tem dados completos (name, age, height, weight) E não são valores padrão, considerar como enquete respondida
       const hasCompleteData = profile.name && profile.age && profile.height && profile.weight;
       if (hasCompleteData) {
-        console.log('✅ [DEBUG] Perfil completo detectado (name, age, height, weight), considerando enquete respondida');
+        console.log('✅ [DEBUG] Perfil completo com dados reais detectado (name, age, height, weight), considerando enquete respondida');
         return true;
       }
 

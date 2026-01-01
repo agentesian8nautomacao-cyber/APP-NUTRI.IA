@@ -269,7 +269,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onLo
                                     
                                     // Aguardar um pouco para garantir que a sessão está estabelecida
                                     // e o estado de autenticação foi atualizado pelo onAuthStateChange
-                                    await new Promise(resolve => setTimeout(resolve, 300));
+                                    await new Promise(resolve => setTimeout(resolve, 100));
                                     
                                     // Verificar se a sessão está realmente disponível
                                     const { authService: auth } = await import('../services/supabaseService');
@@ -278,7 +278,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onLo
                                     // Se não encontrou, tentar mais uma vez
                                     if (!user) {
                                         console.warn('⚠️ [DEBUG] LandingPage: Usuário não encontrado na primeira tentativa, aguardando...');
-                                        await new Promise(resolve => setTimeout(resolve, 500));
+                                        await new Promise(resolve => setTimeout(resolve, 200));
                                         user = await auth.getCurrentUser();
                                     }
                                     
