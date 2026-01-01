@@ -264,22 +264,31 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onLo
                                 setIsLoggingIn(true);
                                 try {
                                     console.log('🔐 [DEBUG] LandingPage: Iniciando login...');
-                                    await authService.signIn(loginEmail.trim(), loginPassword);
-                                    console.log('✅ [DEBUG] LandingPage: Login bem-sucedido');
+                                    const loginResult = await authService.signIn(loginEmail.trim(), loginPassword);
+                                    console.log('✅ [DEBUG] LandingPage: Login bem-sucedido', loginResult);
                                     
                                     // Aguardar um pouco para garantir que a sessão está estabelecida
-                                    // e o estado de autenticação foi atualizado
-                                    await new Promise(resolve => setTimeout(resolve, 200));
+                                    // e o estado de autenticação foi atualizado pelo onAuthStateChange
+                                    await new Promise(resolve => setTimeout(resolve, 300));
                                     
                                     // Verificar se a sessão está realmente disponível
                                     const { authService: auth } = await import('../services/supabaseService');
-                                    const user = await auth.getCurrentUser();
+                                    let user = await auth.getCurrentUser();
+                                    
+                                    // Se não encontrou, tentar mais uma vez
+                                    if (!user) {
+                                        console.warn('⚠️ [DEBUG] LandingPage: Usuário não encontrado na primeira tentativa, aguardando...');
+                                        await new Promise(resolve => setTimeout(resolve, 500));
+                                        user = await auth.getCurrentUser();
+                                    }
                                     
                                     if (!user) {
+                                        console.error('❌ [DEBUG] LandingPage: Sessão não estabelecida após múltiplas tentativas');
                                         throw new Error('Sessão não estabelecida. Tente fazer login novamente.');
                                     }
                                     
-                                    console.log('✅ [DEBUG] LandingPage: Sessão confirmada, chamando onGetStarted');
+                                    console.log('✅ [DEBUG] LandingPage: Sessão confirmada, usuário:', user.id);
+                                    console.log('✅ [DEBUG] LandingPage: Chamando onGetStarted');
                                     // Login bem-sucedido - chamar onGetStarted para continuar
                                     onGetStarted();
                                 } catch (error: any) {

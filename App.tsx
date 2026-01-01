@@ -567,51 +567,87 @@ const App: React.FC = () => {
               console.log('🚀 [DEBUG] onGetStarted chamado');
               try {
                 // Aguardar um pouco para garantir que a sessão está disponível
-                await new Promise(resolve => setTimeout(resolve, 100));
+                await new Promise(resolve => setTimeout(resolve, 200));
                 
-                const user = await authService.getCurrentUser();
-                console.log('👤 [DEBUG] Usuário:', user ? user.id : 'não encontrado');
+                let user = await authService.getCurrentUser();
+                console.log('👤 [DEBUG] Usuário (primeira tentativa):', user ? user.id : 'não encontrado');
                 
                 if (!user) {
                   console.error('❌ [DEBUG] Usuário não encontrado após login. Tentando novamente...');
                   // Tentar mais uma vez após um pequeno delay
-                  await new Promise(resolve => setTimeout(resolve, 300));
-                  const retryUser = await authService.getCurrentUser();
-                  if (!retryUser) {
+                  await new Promise(resolve => setTimeout(resolve, 500));
+                  user = await authService.getCurrentUser();
+                  console.log('👤 [DEBUG] Usuário (segunda tentativa):', user ? user.id : 'não encontrado');
+                  
+                  if (!user) {
                     console.error('❌ [DEBUG] Usuário ainda não encontrado após retry');
                     alert('Erro ao verificar autenticação. Por favor, tente fazer login novamente.');
                     setIsProcessingGetStarted(false);
                     return;
                   }
-                  // Se encontrou no retry, usar esse usuário
-                  const user = retryUser;
                 }
                 
-                if (user) {
-                  // Atualizar estado de autenticação
-                  setIsAuthenticated(true);
-                  // Executar verificações em paralelo para melhorar performance
-                  console.log('✅ [DEBUG] Carregando dados do usuário em paralelo...');
+                // Atualizar estado de autenticação ANTES de continuar
+                setIsAuthenticated(true);
+                console.log('✅ [DEBUG] Estado isAuthenticated atualizado para true');
+                
+                // Executar verificações em paralelo para melhorar performance
+                console.log('✅ [DEBUG] Carregando dados do usuário em paralelo...');
                   
-                  const [isDev, profile, hasCompleted] = await Promise.all([
+                  const [isDev, profile] = await Promise.all([
                     checkIsDeveloper().catch(() => false), // Não bloquear se falhar
                     authService.getCurrentUserProfile(),
-                    surveyService.hasCompletedSurvey(user.id).catch(() => false), // Não bloquear se falhar
                   ]);
+                  
+                  // Verificar enquete após obter perfil (para passar perfil como parâmetro)
+                  const hasCompleted = await surveyService.hasCompletedSurvey(user.id, profile).catch(() => false);
                   
                   console.log('📋 [DEBUG] Perfil:', profile ? profile.name : 'não encontrado');
                   console.log('📋 [DEBUG] Enquete respondida?', hasCompleted);
+                  console.log('📋 [DEBUG] É desenvolvedor?', isDev);
+                  
+                  // Se for desenvolvedor e já tem perfil completo, pular enquete
+                  if (isDev && profile && profile.name && profile.age && profile.height && profile.weight) {
+                    console.log('🔧 [DEBUG] Desenvolvedor com perfil completo, pulando enquete');
+                    setUserProfile(profile);
+                    // Carregar plano se existir
+                    try {
+                      const plan = await planService.getPlan(user.id);
+                      if (plan) {
+                        setDietPlan(plan);
+                      } else {
+                        // Se não tem plano, usar mock para desenvolvedor
+                        setDietPlan(MOCK_PLAN);
+                      }
+                    } catch (planError) {
+                      console.error('❌ [DEBUG] Erro ao carregar plano:', planError);
+                      setDietPlan(MOCK_PLAN);
+                    }
+                    setView('dashboard');
+                    setIsProcessingGetStarted(false);
+                    return;
+                  }
                   
                   if (!hasCompleted && !showSurvey) {
                     // NOVO USUÁRIO: Mostrar enquete (primeiro acesso)
-                    // IMPORTANTE: TODOS os usuários (incluindo desenvolvedores) devem ver a enquete no primeiro acesso
+                    // IMPORTANTE: Desenvolvedores só veem enquete se não tiverem perfil completo
                     console.log('📋 [DEBUG] Mostrando enquete para novo usuário (primeiro acesso)');
+                    
+                    // Definir perfil antes de mostrar enquete (para que a enquete possa atualizar)
+                    if (profile) {
+                      setUserProfile(profile);
+                    }
+                    
+                    // Mudar view para dashboard para que a enquete apareça sobre o dashboard
+                    // (a enquete é um modal que aparece sobre qualquer view)
+                    setView('dashboard');
+                    
                     // Prevenir múltiplas chamadas
                     if (!showSurvey) {
                       setShowSurvey(true);
                     }
-                    // Não carregar plano nem ir para dashboard ainda - aguardar enquete
-                    // Não definir perfil ainda - a enquete vai coletar os dados
+                    
+                    // Não carregar plano ainda - aguardar enquete
                     setIsProcessingGetStarted(false);
                     return;
                   }
@@ -655,11 +691,6 @@ const App: React.FC = () => {
                     setView('onboarding');
                   }
                   // Se tem perfil e já respondeu enquete, já foi redirecionado para dashboard acima
-                } else {
-                  console.log('⚠️ [DEBUG] Sem usuário após todas as tentativas');
-                  alert('Erro ao verificar autenticação. Por favor, tente fazer login novamente.');
-                  setIsProcessingGetStarted(false);
-                }
               } catch (error) {
                 console.error('❌ [DEBUG] Erro ao verificar usuário:', error);
                 // Em caso de erro, mostrar mensagem e manter na landing

@@ -172,7 +172,7 @@ export const authService = {
     // Verificar se a sessão foi estabelecida corretamente
     if (!data.session) {
       console.warn('⚠️ [DEBUG] Sessão não retornada no login, tentando obter sessão...');
-      // Tentar obter a sessão novamente
+      // Tentar obter a sessão novamente (apenas se necessário)
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
       if (sessionError || !sessionData.session) {
         console.error('❌ [DEBUG] Erro ao obter sessão após login:', sessionError);
@@ -183,17 +183,9 @@ export const authService = {
       console.log('✅ [DEBUG] Sessão estabelecida no login');
     }
     
-    // Aguardar um pouco para garantir que a sessão está estabelecida e persistida
-    // Isso ajuda a evitar erros 406 em queries subsequentes e problemas de sessão no Vercel
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    // Verificar novamente a sessão após o delay para garantir persistência
-    const { data: { session: finalSession } } = await supabase.auth.getSession();
-    if (!finalSession) {
-      console.error('❌ [DEBUG] Sessão perdida após delay. Isso pode indicar problema de persistência.');
-      throw new Error('Erro ao manter sessão. Tente fazer login novamente.');
-    }
-    console.log('✅ [DEBUG] Sessão confirmada após delay');
+    // Delay mínimo apenas para garantir que a sessão está persistida no localStorage
+    // Reduzido de 500ms para 100ms - suficiente para persistência sem causar lentidão perceptível
+    await new Promise(resolve => setTimeout(resolve, 100));
     
     return data;
   },
@@ -1752,8 +1744,15 @@ export const permissionsService = {
 
 export const surveyService = {
   // Verificar se usuário já respondeu a enquete
-  async hasCompletedSurvey(userId: string): Promise<boolean> {
+  // Se o perfil tiver dados completos (name, age, height, weight), considera como enquete respondida
+  async hasCompletedSurvey(userId: string, profile?: any): Promise<boolean> {
     try {
+      // Se o perfil foi passado e tem dados completos, considerar como enquete respondida
+      if (profile && profile.name && profile.age && profile.height && profile.weight) {
+        console.log('✅ [DEBUG] Perfil completo detectado, considerando enquete respondida');
+        return true;
+      }
+
       // Tentar verificar na tabela user_surveys (se existir)
       const { data, error } = await supabase
         .from('user_surveys')
@@ -1772,39 +1771,78 @@ export const surveyService = {
             .maybeSingle();
           
           if (fallbackError) {
-            if (fallbackError.code === 'PGRST116') return false;
+            if (fallbackError.code === 'PGRST116') {
+              // Não encontrado na tabela user_surveys, verificar perfil completo
+              return this.checkProfileComplete(userId);
+            }
             // Se a tabela não existir, verificar em user_profiles
             if (fallbackError.code === '42P01') {
-              const { data: profile } = await supabase
-                .from('user_profiles')
-                .select('survey_completed')
-                .eq('user_id', userId)
-                .maybeSingle();
-              return profile?.survey_completed || false;
+              return this.checkProfileComplete(userId);
             }
             console.error('Erro ao verificar enquete:', fallbackError);
-            return false;
+            return this.checkProfileComplete(userId);
           }
           return !!fallbackData;
         }
         
-        if (error.code === 'PGRST116') return false; // Não encontrado = não respondeu
+        if (error.code === 'PGRST116') {
+          // Não encontrado = verificar se perfil está completo
+          return this.checkProfileComplete(userId);
+        }
         // Se a tabela não existir, verificar em user_profiles
         if (error.code === '42P01') {
-          const { data: profile } = await supabase
-            .from('user_profiles')
-            .select('survey_completed')
-            .eq('user_id', userId)
-            .maybeSingle();
-          return profile?.survey_completed || false;
+          return this.checkProfileComplete(userId);
         }
         console.error('Erro ao verificar enquete:', error);
+        return this.checkProfileComplete(userId);
+      }
+
+      // Se encontrou registro em user_surveys, enquete foi respondida
+      if (data) {
+        return true;
+      }
+
+      // Se não encontrou registro, verificar se perfil está completo
+      return this.checkProfileComplete(userId);
+    } catch (error) {
+      console.error('Erro ao verificar enquete:', error);
+      return this.checkProfileComplete(userId);
+    }
+  },
+
+  // Verificar se o perfil tem dados completos (name, age, height, weight)
+  async checkProfileComplete(userId: string): Promise<boolean> {
+    try {
+      const { data: profile, error } = await supabase
+        .from('user_profiles')
+        .select('name, age, height, weight, survey_completed')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Erro ao verificar perfil completo:', error);
         return false;
       }
 
-      return !!data;
+      if (!profile) {
+        return false;
+      }
+
+      // Se survey_completed é true, enquete foi respondida
+      if (profile.survey_completed) {
+        return true;
+      }
+
+      // Se perfil tem dados completos (name, age, height, weight), considerar como enquete respondida
+      const hasCompleteData = profile.name && profile.age && profile.height && profile.weight;
+      if (hasCompleteData) {
+        console.log('✅ [DEBUG] Perfil completo detectado (name, age, height, weight), considerando enquete respondida');
+        return true;
+      }
+
+      return false;
     } catch (error) {
-      console.error('Erro ao verificar enquete:', error);
+      console.error('Erro ao verificar perfil completo:', error);
       return false;
     }
   },
