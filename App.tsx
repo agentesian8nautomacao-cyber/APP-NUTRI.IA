@@ -677,9 +677,16 @@ const App: React.FC = () => {
                           setIsGenerating(true);
                           try {
                             const newPlan = await generateDietPlan(profile);
+                            
+                            // Validar se o plano tem targetMacros antes de salvar
+                            if (!newPlan || !newPlan.targetMacros) {
+                              console.error('❌ [DEBUG] Plano gerado não tem targetMacros:', newPlan);
+                              throw new Error('Plano gerado está incompleto');
+                            }
+                            
                             setDietPlan(newPlan);
-                            // Salvar plano no banco
-                            await planService.savePlan(user.id, newPlan);
+                            // Salvar plano no banco (ordem: plan, userId, planDate?)
+                            await planService.savePlan(newPlan, user.id);
                             console.log('✅ [DEBUG] Plano gerado e salvo com sucesso');
                             setView('dashboard');
                           } catch (planError) {

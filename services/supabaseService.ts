@@ -64,13 +64,19 @@ function userProfileFromDB(dbProfile: any): UserProfile {
 
 // Converter DailyPlan do app para formato do banco
 function dailyPlanToDB(plan: DailyPlan, userId: string, planDate?: Date) {
+  // Validar se targetMacros existe
+  if (!plan.targetMacros) {
+    console.error('❌ [DEBUG] Plano não tem targetMacros definido:', plan);
+    throw new Error('Plano inválido: targetMacros não está definido');
+  }
+
   return {
     user_id: userId,
     plan_date: planDate ? planDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-    total_calories: plan.totalCalories,
-    target_protein: plan.targetMacros.protein,
-    target_carbs: plan.targetMacros.carbs,
-    target_fats: plan.targetMacros.fats,
+    total_calories: plan.totalCalories || 0,
+    target_protein: plan.targetMacros.protein || 0,
+    target_carbs: plan.targetMacros.carbs || 0,
+    target_fats: plan.targetMacros.fats || 0,
     nutritional_analysis: plan.nutritionalAnalysis || null,
     behavioral_tips: plan.behavioralTips || null,
     shopping_list: plan.shoppingList || null,

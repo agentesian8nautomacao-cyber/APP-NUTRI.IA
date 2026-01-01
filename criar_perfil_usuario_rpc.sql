@@ -32,12 +32,12 @@ BEGIN
       name = COALESCE(p_name, name),
       plan_type = p_plan_type::plan_type,
       subscription_status = CASE 
-        WHEN p_subscription_status::text = 'trial' THEN 'trial'::subscription_status
-        WHEN p_subscription_status::text = 'active' THEN 'active'::subscription_status
-        WHEN p_subscription_status::text = 'FREE' THEN 'FREE'::subscription_status
-        WHEN p_subscription_status::text = 'PREMIUM_UNLIMITED' THEN 'PREMIUM_UNLIMITED'::subscription_status
-        WHEN p_subscription_status::text = 'inactive' THEN 'inactive'::subscription_status
-        WHEN p_subscription_status::text = 'expired' THEN 'expired'::subscription_status
+        WHEN p_subscription_status::text = 'trial' THEN 'trial'::text::subscription_status
+        WHEN p_subscription_status::text = 'active' THEN 'active'::text::subscription_status
+        WHEN p_subscription_status::text = 'FREE' THEN 'FREE'::text::subscription_status
+        WHEN p_subscription_status::text = 'PREMIUM_UNLIMITED' THEN 'PREMIUM_UNLIMITED'::text::subscription_status
+        WHEN p_subscription_status::text = 'inactive' THEN 'inactive'::text::subscription_status
+        WHEN p_subscription_status::text = 'expired' THEN 'expired'::text::subscription_status
         ELSE subscription_status -- Manter valor atual se inválido
       END,
       subscription_expiry = COALESCE(p_subscription_expiry, subscription_expiry),
@@ -76,13 +76,13 @@ BEGIN
     3, -- Default meals_per_day
     p_plan_type::plan_type,
     CASE 
-      WHEN p_subscription_status::text = 'trial' THEN 'trial'::subscription_status
-      WHEN p_subscription_status::text = 'active' THEN 'active'::subscription_status
-      WHEN p_subscription_status::text = 'FREE' THEN 'FREE'::subscription_status
-      WHEN p_subscription_status::text = 'PREMIUM_UNLIMITED' THEN 'PREMIUM_UNLIMITED'::subscription_status
-      WHEN p_subscription_status::text = 'inactive' THEN 'inactive'::subscription_status
-      WHEN p_subscription_status::text = 'expired' THEN 'expired'::subscription_status
-      ELSE 'trial'::subscription_status -- Default para trial se inválido
+      WHEN p_subscription_status::text = 'trial' THEN 'trial'::text::subscription_status
+      WHEN p_subscription_status::text = 'active' THEN 'active'::text::subscription_status
+      WHEN p_subscription_status::text = 'FREE' THEN 'FREE'::text::subscription_status
+      WHEN p_subscription_status::text = 'PREMIUM_UNLIMITED' THEN 'PREMIUM_UNLIMITED'::text::subscription_status
+      WHEN p_subscription_status::text = 'inactive' THEN 'inactive'::text::subscription_status
+      WHEN p_subscription_status::text = 'expired' THEN 'expired'::text::subscription_status
+      ELSE 'trial'::text::subscription_status -- Default para trial se inválido
     END,
     p_subscription_expiry,
     p_daily_free_minutes,
