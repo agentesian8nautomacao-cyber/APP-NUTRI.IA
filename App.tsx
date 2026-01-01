@@ -23,7 +23,6 @@ import ProfileView from './components/ProfileView';
 import SettingsView from './components/SettingsView';
 import PersonalChat from './components/PersonalChat';
 import TrialExpiredModal from './components/TrialExpiredModal';
-import SurveyModal from './components/SurveyModal';
 
 import { MessageCircle, Camera, Home, Menu, BookOpen, Phone, User } from 'lucide-react';
 
@@ -162,7 +161,6 @@ const App: React.FC = () => {
   const [isTrialExpired, setIsTrialExpired] = useState(false);
   const [isDevMode, setIsDevMode] = useState(false); // Flag para modo DEV
   const [isDeveloper, setIsDeveloper] = useState(false); // Flag para desenvolvedor
-  const [showSurvey, setShowSurvey] = useState(false); // Flag para mostrar enquete
   const [isProcessingGetStarted, setIsProcessingGetStarted] = useState(false); // Flag para prevenir múltiplas chamadas
 
   // --- Effects ---
@@ -594,136 +592,87 @@ const App: React.FC = () => {
                 // Executar verificações em paralelo para melhorar performance
                 console.log('✅ [DEBUG] Carregando dados do usuário em paralelo...');
                   
-                  const [isDev, profile] = await Promise.all([
-                    checkIsDeveloper().catch(() => false), // Não bloquear se falhar
-                    authService.getCurrentUserProfile(),
-                  ]);
+                const [isDev, profile] = await Promise.all([
+                  checkIsDeveloper().catch(() => false), // Não bloquear se falhar
+                  authService.getCurrentUserProfile(),
+                ]);
                   
-                  // Verificar enquete após obter perfil (para passar perfil como parâmetro)
-                  const hasCompleted = await surveyService.hasCompletedSurvey(user.id, profile).catch(() => false);
+                console.log('📋 [DEBUG] Perfil:', profile ? profile.name : 'não encontrado');
+                console.log('📋 [DEBUG] É desenvolvedor?', isDev);
                   
-                  console.log('📋 [DEBUG] Perfil:', profile ? profile.name : 'não encontrado');
-                  console.log('📋 [DEBUG] Enquete respondida?', hasCompleted);
-                  console.log('📋 [DEBUG] É desenvolvedor?', isDev);
-                  
-                  // Se for desenvolvedor e já tem perfil completo, pular enquete
-                  if (isDev && profile && profile.name && profile.age && profile.height && profile.weight) {
-                    console.log('🔧 [DEBUG] Desenvolvedor com perfil completo, pulando enquete');
-                    setUserProfile(profile);
-                    // Carregar plano se existir
-                    try {
-                      const plan = await planService.getPlan(user.id);
-                      if (plan) {
-                        setDietPlan(plan);
-                      } else {
-                        // Se não tem plano, usar mock para desenvolvedor
-                        setDietPlan(MOCK_PLAN);
-                      }
-                    } catch (planError) {
-                      console.error('❌ [DEBUG] Erro ao carregar plano:', planError);
+                // Se for desenvolvedor e já tem perfil completo, pular onboarding
+                if (isDev && profile && profile.name && profile.age && profile.height && profile.weight) {
+                  console.log('🔧 [DEBUG] Desenvolvedor com perfil completo, pulando onboarding');
+                  setUserProfile(profile);
+                  // Carregar plano se existir
+                  try {
+                    const plan = await planService.getPlan(user.id);
+                    if (plan) {
+                      setDietPlan(plan);
+                    } else {
+                      // Se não tem plano, usar mock para desenvolvedor
                       setDietPlan(MOCK_PLAN);
                     }
-                    setView('dashboard');
-                    setIsProcessingGetStarted(false);
-                    return;
+                  } catch (planError) {
+                    console.error('❌ [DEBUG] Erro ao carregar plano:', planError);
+                    setDietPlan(MOCK_PLAN);
                   }
+                  setView('dashboard');
+                  setIsProcessingGetStarted(false);
+                  return;
+                }
                   
-                  if (!hasCompleted && !showSurvey) {
-                    // NOVO USUÁRIO: Mostrar enquete (primeiro acesso)
-                    // IMPORTANTE: Desenvolvedores só veem enquete se não tiverem perfil completo
-                    console.log('📋 [DEBUG] Mostrando enquete para novo usuário (primeiro acesso)');
-                    
-                    // Definir perfil antes de mostrar enquete (para que a enquete possa atualizar)
-                    if (profile) {
-                      setUserProfile(profile);
-                    }
-                    
-                    // Mudar view para dashboard para que a enquete apareça sobre o dashboard
-                    // (a enquete é um modal que aparece sobre qualquer view)
-                    setView('dashboard');
-                    
-                    // Prevenir múltiplas chamadas
-                    if (!showSurvey) {
-                      setShowSurvey(true);
-                    }
-                    
-                    // Não carregar plano ainda - aguardar enquete
-                    setIsProcessingGetStarted(false);
-                    return;
-                  }
+                // Se tem perfil completo, ir direto para dashboard
+                if (profile && profile.name && profile.age && profile.height && profile.weight) {
+                  console.log('✅ [DEBUG] Usuário com perfil completo, carregando dados...');
+                  setUserProfile(profile);
                   
-                  // USUÁRIO EXISTENTE: Já respondeu enquete, carregar perfil e plano
-                  if (hasCompleted) {
-                    console.log('✅ [DEBUG] Usuário já respondeu enquete, carregando dados...');
-                    
-                    // Se tem perfil, definir
-                    if (profile) {
-                      setUserProfile(profile);
-                    }
-                    
-                    // Carregar plano do banco
-                    try {
-                      const plan = await planService.getPlan(user.id);
-                      if (plan) {
-                        console.log('✅ [DEBUG] Plano carregado do banco');
-                        setDietPlan(plan);
-                        // Ir direto para dashboard se tem plano
-                        setView('dashboard');
-                      } else {
-                        // Se não tem plano mas já respondeu enquete, verificar se é primeiro acesso
-                        // Se o perfil tem dados completos mas não tem plano, gerar automaticamente
-                        if (profile && profile.name && profile.age && profile.height && profile.weight) {
-                          console.log('🔄 [DEBUG] Perfil completo mas sem plano - gerando plano automaticamente...');
-                          setIsGenerating(true);
-                          try {
-                            const newPlan = await generateDietPlan(profile);
-                            
-                            // Validar se o plano tem targetMacros antes de salvar
-                            if (!newPlan || !newPlan.targetMacros) {
-                              console.error('❌ [DEBUG] Plano gerado não tem targetMacros:', newPlan);
-                              throw new Error('Plano gerado está incompleto');
-                            }
-                            
-                            setDietPlan(newPlan);
-                            // Salvar plano no banco (ordem: plan, userId, planDate?)
-                            await planService.savePlan(newPlan, user.id);
-                            console.log('✅ [DEBUG] Plano gerado e salvo com sucesso');
-                            setView('dashboard');
-                          } catch (planError) {
-                            console.error('❌ [DEBUG] Erro ao gerar plano:', planError);
-                            // Em caso de erro, mostrar dashboard mesmo sem plano
-                            setView('dashboard');
-                          } finally {
-                            setIsGenerating(false);
-                          }
-                        } else {
-                          // Se não tem dados completos, apenas mostrar dashboard
-                          console.log('⚠️ [DEBUG] Usuário já respondeu enquete mas não tem plano salvo');
-                          console.log('⚠️ [DEBUG] Perfil incompleto - não gerando plano automaticamente');
-                          setView('dashboard');
-                        }
-                      }
-                    } catch (planError) {
-                      console.error('❌ [DEBUG] Erro ao carregar plano:', planError);
-                      // Em caso de erro, ir para dashboard mesmo sem plano
+                  // Carregar plano do banco
+                  try {
+                    const plan = await planService.getPlan(user.id);
+                    if (plan) {
+                      console.log('✅ [DEBUG] Plano carregado do banco');
+                      setDietPlan(plan);
                       setView('dashboard');
+                    } else {
+                      // Se não tem plano mas tem perfil completo, gerar automaticamente
+                      console.log('🔄 [DEBUG] Perfil completo mas sem plano - gerando plano automaticamente...');
+                      setIsGenerating(true);
+                      try {
+                        const newPlan = await generateDietPlan(profile);
+                        
+                        // Validar se o plano tem targetMacros antes de salvar
+                        if (!newPlan || !newPlan.targetMacros) {
+                          console.error('❌ [DEBUG] Plano gerado não tem targetMacros:', newPlan);
+                          throw new Error('Plano gerado está incompleto');
+                        }
+                        
+                        setDietPlan(newPlan);
+                        await planService.savePlan(newPlan, user.id);
+                        console.log('✅ [DEBUG] Plano gerado e salvo com sucesso');
+                        setView('dashboard');
+                      } catch (planError) {
+                        console.error('❌ [DEBUG] Erro ao gerar plano:', planError);
+                        setView('dashboard');
+                      } finally {
+                        setIsGenerating(false);
+                      }
                     }
+                  } catch (planError) {
+                    console.error('❌ [DEBUG] Erro ao carregar plano:', planError);
+                    setView('dashboard');
                   }
+                  setIsProcessingGetStarted(false);
+                  return;
+                }
                   
-                  // Se chegou aqui e não retornou, significa que já respondeu enquete
-                  // Mas se não tem perfil, redirecionar para onboarding
-                  if (!profile) {
-                    console.log('⚠️ [DEBUG] Sem perfil, redirecionando para onboarding');
-                    setView('onboarding');
-                  }
-                  // Se tem perfil e já respondeu enquete, já foi redirecionado para dashboard acima
+                // Se não tem perfil completo, ir para onboarding (enquete original)
+                console.log('📋 [DEBUG] Novo usuário ou perfil incompleto, redirecionando para onboarding');
+                setView('onboarding');
+                setIsProcessingGetStarted(false);
               } catch (error) {
                 console.error('❌ [DEBUG] Erro ao verificar usuário:', error);
-                // Em caso de erro, mostrar mensagem e manter na landing
                 alert('Erro ao verificar autenticação. Por favor, tente fazer login novamente.');
-                setIsProcessingGetStarted(false);
-              } finally {
-                // Garantir que a flag seja resetada mesmo em caso de erro
                 setIsProcessingGetStarted(false);
               }
             }} 
@@ -996,116 +945,6 @@ const App: React.FC = () => {
             />
         )}
 
-        {/* Survey Modal */}
-        {showSurvey && (
-            <SurveyModal
-                onClose={async () => {
-                    setShowSurvey(false);
-                    // Se estava no onboarding, continuar gerando plano
-                    if (isNewUser && userProfile) {
-                        setView('generating');
-                        setIsGenerating(true);
-                        try {
-                            const plan = await generateDietPlan(userProfile);
-                            setDietPlan(plan);
-                            setView('diet_plan');
-                        } catch (error) {
-                            console.error("Failed to generate plan", error);
-                            alert("Ocorreu um erro ao gerar seu plano. Tente novamente.");
-                            setView('onboarding');
-                        } finally {
-                            setIsGenerating(false);
-                        }
-                    } else if (view === 'landing') {
-                        // Se estava na landing, ir para dashboard
-                        setView('dashboard');
-                    }
-                }}
-                onSubmit={async (answers) => {
-                    try {
-                        const user = await authService.getCurrentUser();
-                        if (user) {
-                            // Salvar enquete
-                            await surveyService.saveSurvey(user.id, {
-                                howDidYouFindUs: answers.howDidYouFindUs,
-                                mainGoal: answers.mainGoal || '',
-                                experience: answers.experience,
-                                feedback: answers.feedback
-                            });
-                            console.log('✅ Enquete salva com sucesso');
-                            
-                            // Se a enquete tem dados básicos (nome, idade, etc), criar/atualizar perfil
-                            if (answers.name && answers.age && answers.height && answers.weight) {
-                                const profile: UserProfile = {
-                                    name: answers.name,
-                                    age: answers.age,
-                                    gender: answers.gender,
-                                    height: answers.height,
-                                    weight: answers.weight,
-                                    activityLevel: answers.activityLevel,
-                                    goal: answers.goal,
-                                    restrictions: '',
-                                    mealsPerDay: 3,
-                                    medicalHistory: '',
-                                    routineDescription: '',
-                                    foodPreferences: '',
-                                    streak: 0,
-                                    lastActiveDate: new Date().toISOString(),
-                                    pantryItems: [],
-                                    aiVoice: 'Kore'
-                                };
-                                
-                                // Salvar perfil
-                                await profileService.saveProfile(profile, user.id);
-                                setUserProfile(profile);
-                                console.log('✅ Perfil criado a partir da enquete');
-                                
-                                // Sempre gerar plano após enquete (primeiro acesso)
-                                setView('generating');
-                                setIsGenerating(true);
-                                try {
-                                    const newPlan = await generateDietPlan(profile);
-                                    setDietPlan(newPlan);
-                                    await planService.savePlan(newPlan, user.id);
-                                    console.log('✅ Plano gerado após enquete');
-                                    setView('diet_plan');
-                                } catch (error) {
-                                    console.error("Failed to generate plan", error);
-                                    alert("Ocorreu um erro ao gerar seu plano. Tente novamente.");
-                                    setView('dashboard');
-                                } finally {
-                                    setIsGenerating(false);
-                                }
-                            }
-                        }
-                    } catch (error) {
-                        console.error('Erro ao salvar enquete:', error);
-                    }
-                    
-                    setShowSurvey(false);
-                    
-                    // Se estava no onboarding, continuar gerando plano
-                    if (isNewUser && userProfile && !answers.name) {
-                        setView('generating');
-                        setIsGenerating(true);
-                        try {
-                            const plan = await generateDietPlan(userProfile);
-                            setDietPlan(plan);
-                            setView('diet_plan');
-                        } catch (error) {
-                            console.error("Failed to generate plan", error);
-                            alert("Ocorreu um erro ao gerar seu plano. Tente novamente.");
-                            setView('onboarding');
-                        } finally {
-                            setIsGenerating(false);
-                        }
-                    } else if (view === 'landing' && !answers.name) {
-                        // Se estava na landing e não criou perfil, ir para dashboard
-                        setView('dashboard');
-                    }
-                }}
-            />
-        )}
 
         {/* Bloqueio de funcionalidades se trial expirado (não aplicar em modo DEV ou desenvolvedor) */}
         {!isDevMode && !isDeveloper && isTrialExpired && (
