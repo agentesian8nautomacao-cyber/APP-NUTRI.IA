@@ -732,46 +732,22 @@ export const authFlowService = {
       }
 
       // Criar ou atualizar perfil usando função RPC (bypass RLS)
-      // Primeiro verificar se o perfil já existe
-      const { data: existingProfileForCoupon } = await supabase
-        .from('user_profiles')
-        .select('id')
-        .eq('user_id', user.id)
-        .maybeSingle();
+      // A função RPC já verifica se o perfil existe, então não precisa verificar antes
+      try {
+        const { error: profileError } = await supabase.rpc('create_user_profile', {
+          p_user_id: user.id,
+          p_name: user.email?.split('@')[0] || 'Usuário',
+          p_plan_type: planType,
+          p_subscription_status: subscriptionStatus,
+          p_subscription_expiry: null,
+          p_daily_free_minutes: 15, // Premium tem 15 minutos
+        });
 
-      if (!existingProfileForCoupon) {
-        // Só criar se não existir
-        try {
-          const { error: profileError } = await supabase.rpc('create_user_profile', {
-            p_user_id: user.id,
-            p_name: user.email?.split('@')[0] || 'Usuário',
-            p_plan_type: planType,
-            p_subscription_status: subscriptionStatus,
-            p_subscription_expiry: null,
-            p_daily_free_minutes: 15, // Premium tem 15 minutos
-          });
-
-          if (profileError) {
-            console.error('Erro ao criar perfil com cupom (RPC):', profileError);
-            // Tentar método alternativo
-            const { error: fallbackError } = await supabase
-              .from('user_profiles')
-              .upsert({
-                user_id: user.id,
-                name: user.email?.split('@')[0] || 'Usuário',
-                plan_type: planType,
-                subscription_status: subscriptionStatus,
-                daily_free_minutes: 15,
-              }, { onConflict: 'user_id' });
-            
-            if (fallbackError) {
-              console.error('Erro ao criar perfil com cupom (fallback):', fallbackError);
-            }
-          }
-        } catch (rpcError: any) {
-          console.error('Erro ao chamar RPC create_user_profile (cupom):', rpcError);
-          // Tentar método alternativo direto
-          await supabase
+        if (profileError) {
+          console.error('Erro ao criar perfil com cupom (RPC):', profileError);
+          console.error('Detalhes do erro:', JSON.stringify(profileError, null, 2));
+          // Tentar método alternativo
+          const { error: fallbackError } = await supabase
             .from('user_profiles')
             .upsert({
               user_id: user.id,
@@ -780,18 +756,33 @@ export const authFlowService = {
               subscription_status: subscriptionStatus,
               daily_free_minutes: 15,
             }, { onConflict: 'user_id' });
+          
+          if (fallbackError) {
+            console.error('Erro ao criar perfil com cupom (fallback):', fallbackError);
+          } else {
+            console.log('✅ [DEBUG] Perfil criado com sucesso usando método fallback');
+          }
+        } else {
+          console.log('✅ [DEBUG] Perfil criado/atualizado com sucesso via RPC');
         }
-      } else {
-        // Se já existe, apenas atualizar campos de assinatura
-        console.log('✅ [DEBUG] Perfil já existe, atualizando dados de assinatura...');
-        await supabase
+      } catch (rpcError: any) {
+        console.error('Erro ao chamar RPC create_user_profile (cupom):', rpcError);
+        // Tentar método alternativo direto
+        const { error: fallbackError } = await supabase
           .from('user_profiles')
-          .update({
+          .upsert({
+            user_id: user.id,
+            name: user.email?.split('@')[0] || 'Usuário',
             plan_type: planType,
             subscription_status: subscriptionStatus,
-            subscription_expiry: null,
-          })
-          .eq('user_id', user.id);
+            daily_free_minutes: 15,
+          }, { onConflict: 'user_id' });
+        
+        if (fallbackError) {
+          console.error('Erro ao criar perfil com cupom (fallback após catch):', fallbackError);
+        } else {
+          console.log('✅ [DEBUG] Perfil criado com sucesso usando método fallback após catch');
+        }
       }
     } else {
       // SEM CUPOM = TRIAL GRÁTIS
@@ -799,79 +790,23 @@ export const authFlowService = {
       const expiryDate = new Date();
       expiryDate.setDate(expiryDate.getDate() + 3); // +3 dias
 
-      // Verificar se o perfil já existe
-      const { data: existingProfile } = await supabase
-        .from('user_profiles')
-        .select('id')
-        .eq('user_id', user.id)
-        .maybeSingle();
+      // Criar perfil com trial
+      // A função RPC já verifica se o perfil existe e faz UPDATE se existir, então não precisa verificar antes
+      try {
+          const { data: profileData, error: trialError } = await supabase.rpc('create_user_profile', {
+            p_user_id: user.id,
+            p_name: user.email?.split('@')[0] || 'Usuário',
+            p_plan_type: 'free',
+            p_subscription_status: 'trial',
+            p_subscription_expiry: expiryDate.toISOString(),
+            p_daily_free_minutes: 5, // 5 minutos = 300 segundos (trial tem menos tempo)
+          });
 
-      if (existingProfile) {
-        // Atualizar perfil existente
-        const { error: trialError } = await supabase
-          .from('user_profiles')
-          .update({
-            plan_type: 'free',
-            subscription_status: 'trial',
-            subscription_expiry: expiryDate.toISOString(),
-            daily_free_minutes: 5, // 5 minutos = 300 segundos (trial tem menos tempo)
-          })
-          .eq('user_id', user.id);
-
-        if (trialError) {
-          console.error('Erro ao configurar trial:', trialError);
-        }
-      } else {
-        // Criar perfil com trial usando função RPC (bypass RLS)
-        // Primeiro verificar se o perfil já existe
-        const { data: existingProfile } = await supabase
-          .from('user_profiles')
-          .select('id')
-          .eq('user_id', user.id)
-          .maybeSingle();
-
-        if (!existingProfile) {
-          // Só criar se não existir
-          try {
-            const { data: profileData, error: trialError } = await supabase.rpc('create_user_profile', {
-              p_user_id: user.id,
-              p_name: user.email?.split('@')[0] || 'Usuário',
-              p_plan_type: 'free',
-              p_subscription_status: 'trial',
-              p_subscription_expiry: expiryDate.toISOString(),
-              p_daily_free_minutes: 5, // 5 minutos = 300 segundos (trial tem menos tempo)
-            });
-
-            if (trialError) {
-              console.error('Erro ao criar perfil com trial (RPC):', trialError);
-              // Tentar método alternativo se RPC falhar
-              const { error: fallbackError } = await supabase
-                .from('user_profiles')
-                .upsert({
-                  user_id: user.id,
-                  name: user.email?.split('@')[0] || 'Usuário',
-                  age: 30,
-                  gender: 'Other',
-                  height: 170,
-                  weight: 70,
-                  activity_level: 'Light',
-                  goal: 'General Health',
-                  meals_per_day: 3,
-                  plan_type: 'free',
-                  subscription_status: 'trial',
-                  subscription_expiry: expiryDate.toISOString(),
-                  daily_free_minutes: 5,
-                  voice_daily_limit_seconds: 300,
-                }, { onConflict: 'user_id' });
-              
-              if (fallbackError) {
-                console.error('Erro ao criar perfil com trial (fallback):', fallbackError);
-              }
-            }
-          } catch (rpcError: any) {
-            console.error('Erro ao chamar RPC create_user_profile (trial):', rpcError);
-            // Tentar método alternativo direto
-            await supabase
+          if (trialError) {
+            console.error('Erro ao criar perfil com trial (RPC):', trialError);
+            console.error('Detalhes do erro:', JSON.stringify(trialError, null, 2));
+            // Tentar método alternativo se RPC falhar
+            const { error: fallbackError } = await supabase
               .from('user_profiles')
               .upsert({
                 user_id: user.id,
@@ -889,18 +824,42 @@ export const authFlowService = {
                 daily_free_minutes: 5,
                 voice_daily_limit_seconds: 300,
               }, { onConflict: 'user_id' });
+            
+            if (fallbackError) {
+              console.error('Erro ao criar perfil com trial (fallback):', fallbackError);
+            } else {
+              console.log('✅ [DEBUG] Perfil criado com sucesso usando método fallback');
+            }
+          } else {
+            console.log('✅ [DEBUG] Perfil criado/atualizado com sucesso via RPC');
           }
-        } else {
-          // Se já existe, apenas atualizar campos de assinatura se necessário
-          console.log('✅ [DEBUG] Perfil já existe, atualizando dados de trial...');
-          await supabase
+        } catch (rpcError: any) {
+          console.error('Erro ao chamar RPC create_user_profile (trial):', rpcError);
+          // Tentar método alternativo direto
+          const { error: fallbackError } = await supabase
             .from('user_profiles')
-            .update({
+            .upsert({
+              user_id: user.id,
+              name: user.email?.split('@')[0] || 'Usuário',
+              age: 30,
+              gender: 'Other',
+              height: 170,
+              weight: 70,
+              activity_level: 'Light',
+              goal: 'General Health',
+              meals_per_day: 3,
+              plan_type: 'free',
               subscription_status: 'trial',
               subscription_expiry: expiryDate.toISOString(),
               daily_free_minutes: 5,
-            })
-            .eq('user_id', user.id);
+              voice_daily_limit_seconds: 300,
+            }, { onConflict: 'user_id' });
+          
+          if (fallbackError) {
+            console.error('Erro ao criar perfil com trial (fallback após catch):', fallbackError);
+          } else {
+            console.log('✅ [DEBUG] Perfil criado com sucesso usando método fallback após catch');
+          }
         }
       }
     }
