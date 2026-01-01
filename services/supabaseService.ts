@@ -123,25 +123,77 @@ export const authService = {
   // Fazer login
   async signIn(email: string, password: string) {
     console.log('🔐 [DEBUG] Tentando fazer login com email:', email);
+    
+    // Validar entrada
+    if (!email || !password) {
+      throw new Error('Por favor, preencha email e senha.');
+    }
+    
     const { data, error } = await supabase.auth.signInWithPassword({
-      email,
+      email: email.trim().toLowerCase(),
       password,
     });
     
     if (error) {
       console.error('❌ [DEBUG] Erro no login:', error);
-      // Melhorar mensagens de erro
-      if (error.message?.includes('Invalid login credentials') || error.message?.includes('Email not confirmed')) {
-        throw new Error('Email ou senha incorretos. Verifique suas credenciais ou crie uma conta.');
+      console.error('❌ [DEBUG] Código do erro:', error.status);
+      console.error('❌ [DEBUG] Mensagem do erro:', error.message);
+      
+      // Melhorar mensagens de erro com base no código de status
+      if (error.status === 400) {
+        if (error.message?.includes('Invalid login credentials')) {
+          throw new Error('Email ou senha incorretos. Verifique suas credenciais ou crie uma conta.');
+        }
+        if (error.message?.includes('Email not confirmed')) {
+          throw new Error('Por favor, confirme seu email antes de fazer login. Verifique sua caixa de entrada.');
+        }
+        throw new Error('Erro ao fazer login. Verifique suas credenciais.');
       }
+      
+      if (error.status === 429) {
+        throw new Error('Muitas tentativas de login. Aguarde alguns minutos e tente novamente.');
+      }
+      
       throw error;
     }
     
-    console.log('✅ [DEBUG] Login bem-sucedido para:', data.user?.email);
+    if (!data.user) {
+      throw new Error('Erro ao fazer login. Usuário não encontrado.');
+    }
     
-    // Aguardar um pouco para garantir que a sessão está estabelecida
-    // Isso ajuda a evitar erros 406 em queries subsequentes
-    await new Promise(resolve => setTimeout(resolve, 300));
+    console.log('✅ [DEBUG] Login bem-sucedido para:', data.user?.email);
+    console.log('✅ [DEBUG] Email confirmado:', !!data.user.email_confirmed_at);
+    
+    // Verificar se o email está confirmado
+    if (!data.user.email_confirmed_at) {
+      console.warn('⚠️ [DEBUG] Email não confirmado, mas login foi permitido');
+    }
+    
+    // Verificar se a sessão foi estabelecida corretamente
+    if (!data.session) {
+      console.warn('⚠️ [DEBUG] Sessão não retornada no login, tentando obter sessão...');
+      // Tentar obter a sessão novamente
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !sessionData.session) {
+        console.error('❌ [DEBUG] Erro ao obter sessão após login:', sessionError);
+        throw new Error('Erro ao estabelecer sessão. Tente fazer login novamente.');
+      }
+      console.log('✅ [DEBUG] Sessão obtida com sucesso após login');
+    } else {
+      console.log('✅ [DEBUG] Sessão estabelecida no login');
+    }
+    
+    // Aguardar um pouco para garantir que a sessão está estabelecida e persistida
+    // Isso ajuda a evitar erros 406 em queries subsequentes e problemas de sessão no Vercel
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Verificar novamente a sessão após o delay para garantir persistência
+    const { data: { session: finalSession } } = await supabase.auth.getSession();
+    if (!finalSession) {
+      console.error('❌ [DEBUG] Sessão perdida após delay. Isso pode indicar problema de persistência.');
+      throw new Error('Erro ao manter sessão. Tente fazer login novamente.');
+    }
+    console.log('✅ [DEBUG] Sessão confirmada após delay');
     
     return data;
   },

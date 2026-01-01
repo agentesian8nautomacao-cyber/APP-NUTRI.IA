@@ -336,22 +336,11 @@ const App: React.FC = () => {
                 if (isDeveloper || isDevMode) {
                   console.log('🔧 [DEBUG] Modo DEV: usando plano mock');
                   setDietPlan(MOCK_PLAN);
-                } else if (userProfile) {
-                  console.log('🔄 [DEBUG] Gerando novo plano...');
-                  // Se não tem plano, gerar um novo (pode demorar)
-                  try {
-                    const newPlan = await generateDietPlan(userProfile);
-                    console.log('✅ [DEBUG] Novo plano gerado');
-                    setDietPlan(newPlan);
-                  } catch (genError) {
-                    console.error('❌ [DEBUG] Erro ao gerar plano:', genError);
-                    // Em caso de erro na geração, usar mock
-                    setDietPlan(MOCK_PLAN);
-                  }
                 } else {
-                  // Se não tem perfil nem plano, usar mock
-                  console.log('🔧 [DEBUG] Sem perfil, usando plano mock');
-                  setDietPlan(MOCK_PLAN);
+                  // NÃO gerar plano automaticamente aqui - isso deve acontecer apenas após enquete
+                  // O plano será gerado apenas após a enquete (primeiro acesso)
+                  console.log('⚠️ [DEBUG] Plano não encontrado - não gerando automaticamente');
+                  // Deixar dietPlan como null - será gerado após enquete
                 }
               }
             } catch (planError) {
@@ -588,101 +577,80 @@ const App: React.FC = () => {
                   const profile = await authService.getCurrentUserProfile();
                   console.log('📋 [DEBUG] Perfil:', profile ? profile.name : 'não encontrado');
                   
-                  if (profile) {
-                    setUserProfile(profile);
+                  // PRIMEIRO: Verificar se deve mostrar enquete (para novos usuários que ainda não responderam)
+                  // A enquete coleta dados básicos e gera o plano, então deve aparecer se não foi respondida
+                  // IMPORTANTE: TODOS os usuários (incluindo desenvolvedores) devem ver a enquete no primeiro acesso
+                  console.log('✅ [DEBUG] Verificando se deve mostrar enquete...');
+                  
+                  try {
+                    const hasCompleted = await surveyService.hasCompletedSurvey(user.id);
+                    console.log('📋 [DEBUG] Enquete respondida?', hasCompleted);
                     
-                    // Carregar plano do dia
+                    if (!hasCompleted && !showSurvey) {
+                      // NOVO USUÁRIO: Mostrar enquete (primeiro acesso)
+                      // IMPORTANTE: TODOS os usuários (incluindo desenvolvedores) devem ver a enquete no primeiro acesso
+                      console.log('📋 [DEBUG] Mostrando enquete para novo usuário (primeiro acesso)');
+                      // Prevenir múltiplas chamadas
+                      if (!showSurvey) {
+                        setShowSurvey(true);
+                      }
+                      // Não carregar plano nem ir para dashboard ainda - aguardar enquete
+                      // Não definir perfil ainda - a enquete vai coletar os dados
+                      setIsProcessingGetStarted(false);
+                      return;
+                    }
+                    
+                    // USUÁRIO EXISTENTE: Já respondeu enquete, carregar perfil e plano
+                    if (hasCompleted) {
+                      console.log('✅ [DEBUG] Usuário já respondeu enquete, carregando dados...');
+                      
+                      // Se tem perfil, definir
+                      if (profile) {
+                        setUserProfile(profile);
+                      }
+                      
+                      // Carregar plano do banco
+                      try {
+                        const plan = await planService.getPlan(user.id);
+                        if (plan) {
+                          console.log('✅ [DEBUG] Plano carregado do banco');
+                          setDietPlan(plan);
+                          // Ir direto para dashboard se tem plano
+                          setView('dashboard');
+                        } else {
+                          // Se não tem plano mas já respondeu enquete, pode ser que o plano não foi gerado ainda
+                          // OU o usuário deletou o plano. Neste caso, NÃO gerar automaticamente em login
+                          // Apenas mostrar dashboard sem plano (usuário pode regenerar manualmente)
+                          console.log('⚠️ [DEBUG] Usuário já respondeu enquete mas não tem plano salvo');
+                          console.log('⚠️ [DEBUG] Não gerando plano automaticamente - usuário pode regenerar manualmente');
+                          setView('dashboard');
+                        }
+                      } catch (planError) {
+                        console.error('❌ [DEBUG] Erro ao carregar plano:', planError);
+                        // Em caso de erro, ir para dashboard mesmo sem plano
+                        setView('dashboard');
+                      }
+                    }
+                  } catch (error) {
+                    console.error('❌ [DEBUG] Erro ao verificar enquete:', error);
+                    // Em caso de erro, tentar carregar plano e ir para dashboard
+                    if (profile) {
+                      setUserProfile(profile);
+                    }
                     try {
                       const plan = await planService.getPlan(user.id);
                       if (plan) {
-                        console.log('✅ [DEBUG] Plano carregado do banco');
                         setDietPlan(plan);
-                      } else {
-                        // Se não tem plano, usar mock para desenvolvedores (não gerar para não travar)
-                        if (isDeveloper || isDevMode) {
-                          console.log('🔧 [DEBUG] Desenvolvedor: usando plano mock');
-                          setDietPlan(MOCK_PLAN);
-                        } else {
-                          // Para usuários normais, gerar plano (pode demorar)
-                          // Evitar geração duplicada
-                          if (!isGeneratingPlan) {
-                            setIsGeneratingPlan(true);
-                            console.log('🔄 [DEBUG] Gerando novo plano...');
-                            try {
-                              const newPlan = await generateDietPlan(profile);
-                              console.log('✅ [DEBUG] Novo plano gerado');
-                              setDietPlan(newPlan);
-                              // Salvar plano no banco após gerar
-                              try {
-                                await planService.savePlan(newPlan, user.id);
-                                console.log('✅ [DEBUG] Plano salvo no banco');
-                              } catch (saveError) {
-                                console.error('❌ [DEBUG] Erro ao salvar plano:', saveError);
-                              }
-                            } catch (genError) {
-                              console.error('❌ [DEBUG] Erro ao gerar plano:', genError);
-                              // Em caso de erro, usar mock para não travar
-                              setDietPlan(MOCK_PLAN);
-                            } finally {
-                              setIsGeneratingPlan(false);
-                            }
-                          } else {
-                            console.log('⏸️ [DEBUG] Geração de plano já em andamento, aguardando...');
-                          }
-                        }
                       }
                     } catch (planError) {
-                      console.error('❌ [DEBUG] Erro ao carregar plano:', planError);
-                      // Em caso de erro, usar mock para não travar
-                      setDietPlan(MOCK_PLAN);
+                      console.error('❌ [DEBUG] Erro ao carregar plano após erro na enquete:', planError);
                     }
-                    
-                    console.log('✅ [DEBUG] Verificando se deve mostrar enquete...');
-                    
-                    // Verificar se deve mostrar enquete (para novos usuários que ainda não responderam)
-                    // A enquete coleta dados básicos e gera o plano, então deve aparecer se não foi respondida
-                    try {
-                      const hasCompleted = await surveyService.hasCompletedSurvey(user.id);
-                      if (!hasCompleted && !isDeveloper && !showSurvey) {
-                        console.log('📋 [DEBUG] Mostrando enquete para novo usuário (primeiro acesso)');
-                        // Mostrar enquete antes de ir para dashboard
-                        // A enquete vai coletar dados básicos e gerar o plano
-                        // Prevenir múltiplas chamadas
-                        if (!showSurvey) {
-                          setShowSurvey(true);
-                        }
-                      } else {
-                        // Se já respondeu enquete, verificar se tem plano
-                        if (!dietPlan) {
-                          // Se não tem plano mas tem perfil, gerar plano
-                          if (profile && profile.name && profile.age && profile.height && profile.weight) {
-                            console.log('🔄 [DEBUG] Usuário tem perfil mas não tem plano, gerando...');
-                            setView('generating');
-                            setIsGenerating(true);
-                            try {
-                              const newPlan = await generateDietPlan(profile);
-                              setDietPlan(newPlan);
-                              await planService.savePlan(newPlan, user.id);
-                              setView('diet_plan');
-                            } catch (error) {
-                              console.error('❌ [DEBUG] Erro ao gerar plano:', error);
-                              setView('dashboard');
-                            } finally {
-                              setIsGenerating(false);
-                            }
-                          } else {
-                            console.log('✅ [DEBUG] Enquete já respondida, indo para dashboard');
-                            setView('dashboard');
-                          }
-                        } else {
-                          console.log('✅ [DEBUG] Enquete já respondida e tem plano, indo para dashboard');
-                          setView('dashboard');
-                        }
-                      }
-                    } catch (error) {
-                      console.error('❌ [DEBUG] Erro ao verificar enquete:', error);
-                      setView('dashboard');
-                    }
+                    setView('dashboard');
+                  }
+                  
+                  // Se chegou aqui e não retornou, significa que já respondeu enquete
+                  // Mas se não tem perfil, redirecionar para onboarding
+                  if (!profile) {
                   } else {
                     console.log('⚠️ [DEBUG] Sem perfil, redirecionando para onboarding');
                     setView('onboarding');

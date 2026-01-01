@@ -7,23 +7,26 @@ export default defineConfig(({ mode }) => {
 
     return {
       server: {
-      port: 3003,
-      host: true,
-      strictPort: false,
-      hmr: {
-        host: 'localhost',
         port: 3003,
-      },
+        host: true,
+        strictPort: false,
+        hmr: {
+          host: 'localhost',
+          port: 3003,
+          clientPort: 3003,
+          // Desabilitar HMR se não conseguir conectar (evita erros de conexão)
+          overlay: true,
+        },
       },
       plugins: [react()],
       define: {
         'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
       },
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),
+        },
       },
-    },
     };
 });

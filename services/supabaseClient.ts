@@ -48,6 +48,17 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
+    detectSessionInUrl: true,
+    // Configuração para melhorar compatibilidade com CORS e produção
+    flowType: 'pkce',
+    // Configurações adicionais para melhorar persistência em produção (Vercel)
+    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+    storageKey: 'supabase.auth.token',
+  },
+  // Configurações globais para melhorar compatibilidade
+  global: {
+    // Headers adicionais podem ser adicionados aqui se necessário
+    // Nota: CORS é controlado pelo servidor (Supabase), não pelo cliente
   },
 });
 

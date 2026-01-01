@@ -9,6 +9,44 @@ interface ProfileViewProps {
   onBack: () => void;
 }
 
+// Funções de tradução para português
+const translateActivityLevel = (level: ActivityLevel): string => {
+  const translations: Record<ActivityLevel, string> = {
+    [ActivityLevel.Sedentary]: 'Sedentário',
+    [ActivityLevel.Light]: 'Leve',
+    [ActivityLevel.Moderate]: 'Moderado',
+    [ActivityLevel.Active]: 'Ativo',
+    [ActivityLevel.VeryActive]: 'Muito Ativo'
+  };
+  return translations[level] || level;
+};
+
+const translateGoal = (goal: Goal): string => {
+  const translations: Record<Goal, string> = {
+    [Goal.LoseWeight]: 'Perder Peso',
+    [Goal.Maintain]: 'Manter Peso',
+    [Goal.GainMuscle]: 'Ganhar Músculos',
+    [Goal.ImproveHealth]: 'Saúde Geral'
+  };
+  return translations[goal] || goal;
+};
+
+// Opções traduzidas para os selects
+const activityLevelOptions = [
+  { value: ActivityLevel.Sedentary, label: 'Sedentário' },
+  { value: ActivityLevel.Light, label: 'Leve' },
+  { value: ActivityLevel.Moderate, label: 'Moderado' },
+  { value: ActivityLevel.Active, label: 'Ativo' },
+  { value: ActivityLevel.VeryActive, label: 'Muito Ativo' }
+];
+
+const goalOptions = [
+  { value: Goal.LoseWeight, label: 'Perder Peso' },
+  { value: Goal.Maintain, label: 'Manter Peso' },
+  { value: Goal.GainMuscle, label: 'Ganhar Músculos' },
+  { value: Goal.ImproveHealth, label: 'Saúde Geral' }
+];
+
 const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => {
   const chefInputRef = useRef<HTMLInputElement>(null);
   const userInputRef = useRef<HTMLInputElement>(null);
@@ -51,31 +89,62 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => 
       setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const InfoItem = ({ label, field, type = 'text', options }: { label: string, field: keyof UserProfile, type?: string, options?: string[] }) => (
-    <div className="bg-white p-4 rounded-2xl border border-[#1A4D2E]/5">
-      <div className="text-xs font-bold text-[#4F6F52] uppercase mb-1">{label}</div>
-      {isEditing ? (
-          options ? (
-             <select 
-                value={formData[field] as string} 
-                onChange={e => handleChange(field, e.target.value)}
-                className="w-full bg-[#F5F1E8] p-2 rounded-lg text-[#1A4D2E] outline-none font-serif border border-[#1A4D2E]/10"
-             >
-                {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-             </select>
-          ) : (
-            <input 
-                type={type} 
-                value={formData[field] as string | number}
-                onChange={e => handleChange(field, type === 'number' ? parseFloat(e.target.value) : e.target.value)}
-                className="w-full bg-[#F5F1E8] p-2 rounded-lg text-[#1A4D2E] outline-none font-serif border border-[#1A4D2E]/10"
-            />
-          )
-      ) : (
-        <div className="text-lg font-serif text-[#1A4D2E]">{formData[field]} {field === 'height' ? 'cm' : field === 'weight' ? 'kg' : ''}</div>
-      )}
-    </div>
-  );
+  const InfoItem = ({ label, field, type = 'text', options, translatedOptions }: { 
+    label: string, 
+    field: keyof UserProfile, 
+    type?: string, 
+    options?: string[],
+    translatedOptions?: Array<{ value: string, label: string }>
+  }) => {
+    // Função para obter o valor exibido (traduzido ou original)
+    const getDisplayValue = (value: any): string => {
+      if (field === 'activityLevel') {
+        return translateActivityLevel(value as ActivityLevel);
+      }
+      if (field === 'goal') {
+        return translateGoal(value as Goal);
+      }
+      return value?.toString() || '';
+    };
+
+    return (
+      <div className="bg-white p-4 rounded-2xl border border-[#1A4D2E]/5">
+        <div className="text-xs font-bold text-[#4F6F52] uppercase mb-1">{label}</div>
+        {isEditing ? (
+            translatedOptions ? (
+               <select 
+                  value={formData[field] as string} 
+                  onChange={e => handleChange(field, e.target.value)}
+                  className="w-full bg-[#F5F1E8] p-2 rounded-lg text-[#1A4D2E] outline-none font-serif border border-[#1A4D2E]/10"
+               >
+                  {translatedOptions.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+               </select>
+            ) : options ? (
+               <select 
+                  value={formData[field] as string} 
+                  onChange={e => handleChange(field, e.target.value)}
+                  className="w-full bg-[#F5F1E8] p-2 rounded-lg text-[#1A4D2E] outline-none font-serif border border-[#1A4D2E]/10"
+               >
+                  {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+               </select>
+            ) : (
+              <input 
+                  type={type} 
+                  value={formData[field] as string | number}
+                  onChange={e => handleChange(field, type === 'number' ? parseFloat(e.target.value) : e.target.value)}
+                  className="w-full bg-[#F5F1E8] p-2 rounded-lg text-[#1A4D2E] outline-none font-serif border border-[#1A4D2E]/10"
+              />
+            )
+        ) : (
+          <div className="text-lg font-serif text-[#1A4D2E]">
+            {getDisplayValue(formData[field])} {field === 'height' ? 'cm' : field === 'weight' ? 'kg' : ''}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="p-6 pb-28 min-h-screen bg-[#F5F1E8] animate-in slide-in-from-right duration-500">
@@ -173,10 +242,10 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdate, onBack }) => 
                 <InfoItem label="Altura" field="height" type="number" />
                 <InfoItem label="Peso" field="weight" type="number" />
                 <div className="col-span-2">
-                    <InfoItem label="Objetivo" field="goal" options={Object.values(Goal)} />
+                    <InfoItem label="Objetivo" field="goal" translatedOptions={goalOptions} />
                 </div>
                  <div className="col-span-2">
-                    <InfoItem label="Nível de Atividade" field="activityLevel" options={Object.values(ActivityLevel)} />
+                    <InfoItem label="Nível de Atividade" field="activityLevel" translatedOptions={activityLevelOptions} />
                 </div>
             </div>
         </div>

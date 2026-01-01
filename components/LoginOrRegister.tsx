@@ -33,7 +33,20 @@ const LoginOrRegister: React.FC<LoginOrRegisterProps> = ({ inviteCode, onComplet
       try {
         console.log('🔐 [DEBUG] LoginOrRegister: Tentando fazer login...');
         await authService.signIn(email.trim(), password);
-        console.log('✅ [DEBUG] LoginOrRegister: Login bem-sucedido, chamando onComplete');
+        console.log('✅ [DEBUG] LoginOrRegister: Login bem-sucedido');
+        
+        // Aguardar um pouco para garantir que a sessão está estabelecida e persistida
+        // Isso é especialmente importante no Vercel onde a sessão pode demorar um pouco mais
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        // Verificar se a sessão está realmente disponível antes de continuar
+        const { authService: auth } = await import('../services/supabaseService');
+        const user = await auth.getCurrentUser();
+        if (!user) {
+          throw new Error('Sessão não estabelecida. Tente fazer login novamente.');
+        }
+        
+        console.log('✅ [DEBUG] LoginOrRegister: Sessão confirmada, chamando onComplete');
         onComplete();
       } catch (err: any) {
         console.error('❌ [DEBUG] LoginOrRegister: Erro no login:', err);
