@@ -8,7 +8,7 @@ import { authService, planService, surveyService, profileService } from './servi
 import LandingPage from './components/LandingPage';
 import { supabase } from './services/supabaseClient';
 import { sessionIsPasswordRecovery } from './utils/authRecovery';
-import { urlIndicatesPasswordRecoveryHash } from './utils/inviteUrlParams';
+import { urlHasSupabaseAuthCode, urlIndicatesPasswordRecoveryHash } from './utils/inviteUrlParams';
 import Onboarding from './components/Onboarding';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
@@ -289,7 +289,20 @@ const App: React.FC = () => {
           await checkIsDeveloper();
         } else {
           setIsDeveloper(false);
-          setIsPasswordRecovery(false);
+          // Durante PKCE (?code=) ou hash de recovery, a sessão pode ainda não existir no 1.º evento;
+          // não limpar isPasswordRecovery senão a landing volta ao "home" em vez de "Nova senha".
+          if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
+            setIsPasswordRecovery(false);
+          } else {
+            const w = typeof window !== 'undefined' ? window : null;
+            const hash = w ? w.location.hash : '';
+            const search = w ? w.location.search : '';
+            const recoveryExchangePending =
+              urlIndicatesPasswordRecoveryHash(hash) || urlHasSupabaseAuthCode(search);
+            if (!recoveryExchangePending) {
+              setIsPasswordRecovery(false);
+            }
+          }
           setView((v) => (v !== 'landing' && v !== 'onboarding' ? 'landing' : v));
         }
       }
