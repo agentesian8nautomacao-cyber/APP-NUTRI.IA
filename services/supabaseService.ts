@@ -1,3 +1,4 @@
+import type { Session } from '@supabase/supabase-js';
 import { supabase } from './supabaseClient';
 import {
   UserProfile,
@@ -303,9 +304,11 @@ export const authService = {
    * Observar mudanças de autenticação.
    * `event` inclui `PASSWORD_RECOVERY` quando o usuário abre o link do e-mail de reset.
    */
-  onAuthStateChange(callback: (user: any, event?: string) => void) {
+  onAuthStateChange(
+    callback: (user: any, event?: string, session?: Session | null) => void
+  ) {
     return supabase.auth.onAuthStateChange((event, session) => {
-      callback(session?.user || null, event);
+      callback(session?.user || null, event, session);
     });
   },
 

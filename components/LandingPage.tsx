@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { ArrowLeft, Ticket, ChevronRight, ChefHat, Check, Star, Eye, EyeOff, Mail } from 'lucide-react';
 import { supabase } from '../services/supabaseClient';
 import { couponService, authFlowService, authService } from '../services/supabaseService';
+import { sessionIsPasswordRecovery } from '../utils/authRecovery';
 import {
   getInviteCodeFromSearch,
   urlIndicatesPasswordRecoveryHash,
@@ -66,15 +67,29 @@ const LandingPage: React.FC<LandingPageProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const trackRef = useRef<HTMLDivElement>(null);
 
-  // Recuperação de senha: PKCE usa ?code=... — não confundir com cupom
+  // Recuperação de senha: PKCE nem sempre emite PASSWORD_RECOVERY; JWT amr recovery é a fonte de verdade
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY' || (session && sessionIsPasswordRecovery(session))) {
         setCouponCode('');
         setScreen('reset_password');
       }
     });
     return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      if (cancelled || !session) return;
+      if (sessionIsPasswordRecovery(session)) {
+        setCouponCode('');
+        setScreen('reset_password');
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Cupom/convite na URL — use ?invite=, ?cupom= ou ?coupon= (recomendado). ?code= legado só se não for PKCE.

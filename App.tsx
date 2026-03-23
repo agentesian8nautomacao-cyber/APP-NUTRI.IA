@@ -6,6 +6,8 @@ import { authService, planService, surveyService, profileService } from './servi
 
 // Components
 import LandingPage from './components/LandingPage';
+import { supabase } from './services/supabaseClient';
+import { sessionIsPasswordRecovery } from './utils/authRecovery';
 import { urlIndicatesPasswordRecoveryHash } from './utils/inviteUrlParams';
 import Onboarding from './components/Onboarding';
 import Sidebar from './components/Sidebar';
@@ -225,6 +227,12 @@ const App: React.FC = () => {
       try {
         const user = await authService.getCurrentUser();
         setIsAuthenticated(!!user);
+
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session && sessionIsPasswordRecovery(session)) {
+          setIsPasswordRecovery(true);
+          setView('landing');
+        }
         
         if (user) {
           // Verificar se é desenvolvedor
@@ -256,23 +264,36 @@ const App: React.FC = () => {
     }
     
     // Observar mudanças de autenticação
-    const { data: { subscription } } = authService.onAuthStateChange(async (user, event) => {
-      if (event === 'PASSWORD_RECOVERY') {
-        setIsPasswordRecovery(true);
+    const { data: { subscription } } = authService.onAuthStateChange(
+      async (user, event, session) => {
+        if (event === 'PASSWORD_RECOVERY') {
+          setIsPasswordRecovery(true);
+          setIsAuthenticated(!!user);
+          setView('landing');
+          await checkIsDeveloper();
+          return;
+        }
+        // PKCE: muitas vezes só INITIAL_SESSION / SIGNED_IN; JWT amr indica recuperação
+        if (session && sessionIsPasswordRecovery(session)) {
+          setIsPasswordRecovery(true);
+          setIsAuthenticated(!!user);
+          setView('landing');
+          if (user) await checkIsDeveloper();
+          return;
+        }
         setIsAuthenticated(!!user);
-        setView('landing');
-        await checkIsDeveloper();
-        return;
+        if (user) {
+          if (session && !sessionIsPasswordRecovery(session)) {
+            setIsPasswordRecovery(false);
+          }
+          await checkIsDeveloper();
+        } else {
+          setIsDeveloper(false);
+          setIsPasswordRecovery(false);
+          setView((v) => (v !== 'landing' && v !== 'onboarding' ? 'landing' : v));
+        }
       }
-      setIsAuthenticated(!!user);
-      if (user) {
-        await checkIsDeveloper();
-      } else {
-        setIsDeveloper(false);
-        setIsPasswordRecovery(false);
-        setView((v) => (v !== 'landing' && v !== 'onboarding' ? 'landing' : v));
-      }
-    });
+    );
     
     return () => {
       subscription.unsubscribe();
