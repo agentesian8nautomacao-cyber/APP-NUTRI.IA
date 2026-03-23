@@ -221,11 +221,32 @@ export const authService = {
     if (!base) {
       throw new Error('URL do site não configurada. Defina VITE_SITE_URL ou acesse pelo navegador.');
     }
-    const redirectTo = `${base}/`;
+    // Deve coincidir com uma entrada em Authentication → URL Configuration → Redirect URLs
+    const redirectTo = base;
     const { error } = await supabase.auth.resetPasswordForEmail(trimmed, {
       redirectTo,
     });
-    if (error) throw error;
+    if (error) {
+      console.error('[Nutri.ai Auth] resetPasswordForEmail falhou:', {
+        status: (error as { status?: number }).status,
+        message: error.message,
+        name: error.name,
+      });
+      const status = (error as { status?: number }).status;
+      const msg = (error.message || '').toLowerCase();
+      // 500 no /recover costuma ser falha ao enviar e-mail (SMTP Resend), não do app web
+      if (status === 500 || msg.includes('error sending') || msg.includes('smtp')) {
+        throw new Error(
+          'O Supabase não conseguiu enviar o e-mail (erro no servidor). ' +
+            'Revise Authentication → Emails → SMTP: host smtp.resend.com, porta 465, usuário resend, senha = API key do Resend, ' +
+            'e um remetente de um domínio verificado no Resend. Veja também Logs → Auth no painel do Supabase.'
+        );
+      }
+      if (status === 429) {
+        throw new Error('Muitas tentativas. Aguarde alguns minutos e tente de novo.');
+      }
+      throw error;
+    }
   },
 
   /** Define nova senha durante sessão de recuperação (após clicar no link do e-mail). */

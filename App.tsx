@@ -6,6 +6,7 @@ import { authService, planService, surveyService, profileService } from './servi
 
 // Components
 import LandingPage from './components/LandingPage';
+import { urlIndicatesPasswordRecoveryHash } from './utils/inviteUrlParams';
 import Onboarding from './components/Onboarding';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
@@ -247,9 +248,9 @@ const App: React.FC = () => {
     
     checkAuth();
 
-    // Link de recuperação (#type=recovery ou PKCE): garantir fluxo de nova senha na landing
+    // Hash com type=recovery (fluxo implícito); PKCE usa ?code= e dispara PASSWORD_RECOVERY no listener abaixo
     const hash = typeof window !== 'undefined' ? window.location.hash : '';
-    if (hash.includes('type=recovery') || hash.includes('type%3Drecovery')) {
+    if (urlIndicatesPasswordRecoveryHash(hash)) {
       setIsPasswordRecovery(true);
       setView('landing');
     }

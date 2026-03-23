@@ -1,7 +1,12 @@
 
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { ArrowLeft, Ticket, ChevronRight, ChefHat, Check, Star, Eye, EyeOff, Mail } from 'lucide-react';
+import { supabase } from '../services/supabaseClient';
 import { couponService, authFlowService, authService } from '../services/supabaseService';
+import {
+  getInviteCodeFromSearch,
+  urlIndicatesPasswordRecoveryHash,
+} from '../utils/inviteUrlParams';
 
 interface LandingPageProps {
   onGetStarted: () => void;
@@ -61,23 +66,39 @@ const LandingPage: React.FC<LandingPageProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const trackRef = useRef<HTMLDivElement>(null);
 
-  // Buscar código automaticamente quando há email ou código na URL
+  // Recuperação de senha: PKCE usa ?code=... — não confundir com cupom
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const email = urlParams.get('email');
-    const code = urlParams.get('code');
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setCouponCode('');
+        setScreen('reset_password');
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
-    // Se já tem código na URL, usar diretamente
-    if (code) {
-      setCouponCode(code);
+  // Cupom/convite na URL — use ?invite=, ?cupom= ou ?coupon= (recomendado). ?code= legado só se não for PKCE.
+  useEffect(() => {
+    const hash = typeof window !== 'undefined' ? window.location.hash : '';
+    if (urlIndicatesPasswordRecoveryHash(hash)) {
+      return;
+    }
+
+    const search = window.location.search;
+    const urlParams = new URLSearchParams(search);
+    const email = urlParams.get('email');
+
+    const inviteFromUrl = getInviteCodeFromSearch(search);
+    if (inviteFromUrl) {
+      setCouponCode(inviteFromUrl);
       setScreen('coupon');
       return;
     }
 
-    // Se tem email, buscar código no banco
     if (email) {
       setIsLoadingCode(true);
-      couponService.getCouponByEmail(email)
+      couponService
+        .getCouponByEmail(email)
         .then((coupon) => {
           if (coupon) {
             setCouponCode(coupon.code);
