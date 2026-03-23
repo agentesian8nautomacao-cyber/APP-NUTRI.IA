@@ -9,6 +9,7 @@ import LandingPage from './components/LandingPage';
 import { supabase } from './services/supabaseClient';
 import { sessionIsPasswordRecovery } from './utils/authRecovery';
 import { urlHasSupabaseAuthCode, urlIndicatesPasswordRecoveryHash } from './utils/inviteUrlParams';
+import { clearRecoveryUrlPending, hasRecoveryUrlPending } from './utils/recoveryUrlCapture';
 import Onboarding from './components/Onboarding';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
@@ -210,6 +211,7 @@ const App: React.FC = () => {
 
   const handleSignOut = useCallback(async () => {
     try {
+      clearRecoveryUrlPending();
       await authService.signOut();
       setIsAuthenticated(false);
       setIsDeveloper(false);
@@ -223,6 +225,10 @@ const App: React.FC = () => {
 
   // Verificar autenticação ao carregar o app
   useEffect(() => {
+    if (typeof window !== 'undefined' && hasRecoveryUrlPending()) {
+      setIsPasswordRecovery(true);
+    }
+
     const checkAuth = async () => {
       try {
         const user = await authService.getCurrentUser();
@@ -230,6 +236,16 @@ const App: React.FC = () => {
 
         const { data: { session } } = await supabase.auth.getSession();
         if (session && sessionIsPasswordRecovery(session)) {
+          setIsPasswordRecovery(true);
+          setView('landing');
+        } else if (session?.user && hasRecoveryUrlPending()) {
+          // JWT sem amr=recovery em alguns casos, mas redirect acabou de trazer ?code=
+          setIsPasswordRecovery(true);
+          setView('landing');
+        } else if (session?.user) {
+          clearRecoveryUrlPending();
+          setIsPasswordRecovery(false);
+        } else if (hasRecoveryUrlPending()) {
           setIsPasswordRecovery(true);
           setView('landing');
         }
@@ -281,10 +297,18 @@ const App: React.FC = () => {
           if (user) await checkIsDeveloper();
           return;
         }
+        if (user && session && hasRecoveryUrlPending()) {
+          setIsPasswordRecovery(true);
+          setIsAuthenticated(true);
+          setView('landing');
+          await checkIsDeveloper();
+          return;
+        }
         setIsAuthenticated(!!user);
         if (user) {
-          if (session && !sessionIsPasswordRecovery(session)) {
+          if (session && !sessionIsPasswordRecovery(session) && !hasRecoveryUrlPending()) {
             setIsPasswordRecovery(false);
+            clearRecoveryUrlPending();
           }
           await checkIsDeveloper();
         } else {
@@ -298,7 +322,9 @@ const App: React.FC = () => {
             const hash = w ? w.location.hash : '';
             const search = w ? w.location.search : '';
             const recoveryExchangePending =
-              urlIndicatesPasswordRecoveryHash(hash) || urlHasSupabaseAuthCode(search);
+              urlIndicatesPasswordRecoveryHash(hash) ||
+              urlHasSupabaseAuthCode(search) ||
+              hasRecoveryUrlPending();
             if (!recoveryExchangePending) {
               setIsPasswordRecovery(false);
             }
@@ -625,6 +651,7 @@ const App: React.FC = () => {
             passwordRecoveryActive={isPasswordRecovery}
             onPasswordRecoveryFinished={() => {
               setIsPasswordRecovery(false);
+              clearRecoveryUrlPending();
               if (typeof window !== 'undefined') {
                 window.history.replaceState(null, '', window.location.pathname + window.location.search);
               }

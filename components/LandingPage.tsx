@@ -28,6 +28,7 @@ import {
   urlHasSupabaseAuthCode,
   urlIndicatesPasswordRecoveryHash,
 } from '../utils/inviteUrlParams';
+import { clearRecoveryUrlPending, hasRecoveryUrlPending } from '../utils/recoveryUrlCapture';
 
 interface LandingPageProps {
   onGetStarted: () => void;
@@ -104,32 +105,35 @@ const LandingPage: React.FC<LandingPageProps> = ({
 
   /**
    * Cupom só via ?invite= / ?cupom= / ?coupon=.
-   * Se existir ?code=, é PKCE do Supabase — esperar sessão e abrir Nova senha se amr=recovery (nunca cupom).
+   * Redirect Supabase (recovery/PKCE): `?code=` some do URL cedo — usar sessionStorage (index.html) + poll.
    */
   useEffect(() => {
     let cancelled = false;
 
     const run = async () => {
       const hash = typeof window !== 'undefined' ? window.location.hash : '';
-      if (urlIndicatesPasswordRecoveryHash(hash)) {
-        return;
-      }
-
       const search = window.location.search;
       const urlParams = new URLSearchParams(search);
 
-      if (urlHasSupabaseAuthCode(search)) {
-        for (let i = 0; i < 25; i++) {
+      const authRedirectPending =
+        urlIndicatesPasswordRecoveryHash(hash) ||
+        urlHasSupabaseAuthCode(search) ||
+        hasRecoveryUrlPending();
+
+      if (authRedirectPending) {
+        for (let i = 0; i < 55; i++) {
           if (cancelled) return;
           const { data: { session } } = await supabase.auth.getSession();
           if (session?.user) {
-            if (sessionIsPasswordRecovery(session)) {
+            if (sessionIsPasswordRecovery(session) || hasRecoveryUrlPending()) {
               setCouponCode('');
               setScreen('reset_password');
+            } else {
+              clearRecoveryUrlPending();
             }
             return;
           }
-          await new Promise((r) => setTimeout(r, 120));
+          await new Promise((r) => setTimeout(r, 150));
         }
         return;
       }

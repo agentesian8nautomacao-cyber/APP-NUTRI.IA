@@ -33,6 +33,18 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Antes do bundle: Supabase apaga ?code= ao iniciar; precisamos lembrar que era redirect de auth/recovery -->
+    <script>
+      (function () {
+        try {
+          var q = window.location.search || '';
+          var h = (window.location.hash || '').replace(/^#/, '');
+          if (q.indexOf('code=') !== -1 || h.indexOf('type=recovery') !== -1 || h.indexOf('type%3Drecovery') !== -1) {
+            sessionStorage.setItem('nutri.auth.recovery_url_pending', String(Date.now()));
+          }
+        } catch (e) {}
+      })();
+    </script>
     <script type="module" src="/index.tsx"></script>
   </body>
 </html>
