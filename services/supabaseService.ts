@@ -490,7 +490,7 @@ export const couponService = {
       // Schema real: subscription_status / subscription_expiry (e às vezes expiry_date no webhook Cakto)
       const { data: paymentProfile, error: paymentError } = await supabase
         .from('user_profiles')
-        .select('*')
+        .select('id, cakto_customer_id, subscription_status, subscription_expiry, expiry_date')
         .eq('cakto_customer_id', data.cakto_customer_id)
         .eq('subscription_status', 'active')
         .limit(1)
