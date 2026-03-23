@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de Conexão Supabase</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f1e8;
+        }
+        .test-result {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border-left: 4px solid #ccc;
+        }
+        .success { border-left-color: #1A4D2E; }
+        .error { border-left-color: #dc2626; }
+        .warning { border-left-color: #f59e0b; }
+        button {
+            background: #1A4D2E;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover { background: #4F6F52; }
+        pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Teste de Conexão Supabase</h1>
+    <button onclick="testConnection()">Executar Testes</button>
+    <button onclick="clearResults()">Limpar</button>
+    <div id="results"></div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+        // Carregar variáveis de ambiente (em produção, use import.meta.env)
+        const supabaseUrl = 'https://hflwyatppivynocllnu.supabase.co';
+        const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhmbHd5YXRwcGl2eW5jb2NsbG51Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM5ODMxNzUsImV4cCI6MjA3OTU1OTE3NX0.OCn9SX9eV7V5RswNQJJfRcDCjh4XqUq-CH_hEMKCuMM';
+
+        const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+        window.testConnection = async function() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<p>⏳ Executando testes...</p>';
+
+            let html = '';
+
+            // Teste 1: Conexão básica
+            try {
+                const { data, error } = await supabase.from('user_profiles').select('count').limit(0);
+                if (error && error.code !== 'PGRST116') throw error;
+                html += '<div class="test-result success"><strong>✅ Teste 1:</strong> Conexão estabelecida</div>';
+            } catch (err) {
+                html += `<div class="test-result error"><strong>❌ Teste 1:</strong> ${err.message}</div>`;
+            }
+
+            // Teste 2: Verificar tabelas
+            const tables = ['user_profiles', 'daily_plans', 'daily_logs', 'challenges', 'articles'];
+            for (const table of tables) {
+                try {
+                    const { error } = await supabase.from(table).select('*').limit(0);
+                    if (error && error.code !== 'PGRST116') throw error;
+                    html += `<div class="test-result success"><strong>✅</strong> Tabela "${table}" existe</div>`;
+                } catch (err) {
+                    html += `<div class="test-result error"><strong>❌</strong> Tabela "${table}": ${err.message}</div>`;
+                }
+            }
+
+            // Teste 3: Dados iniciais
+            try {
+                const { data: challenges, error } = await supabase.from('challenges').select('*');
+                if (error) throw error;
+                html += `<div class="test-result success"><strong>✅</strong> Desafios: ${challenges.length} encontrados</div>`;
+            } catch (err) {
+                html += `<div class="test-result error"><strong>❌</strong> Erro ao buscar desafios: ${err.message}</div>`;
+            }
+
+            try {
+                const { data: articles, error } = await supabase.from('articles').select('*');
+                if (error) throw error;
+                html += `<div class="test-result success"><strong>✅</strong> Artigos: ${articles.length} encontrados</div>`;
+            } catch (err) {
+                html += `<div class="test-result error"><strong>❌</strong> Erro ao buscar artigos: ${err.message}</div>`;
+            }
+
+            // Teste 4: Autenticação
+            try {
+                const { data: { session }, error } = await supabase.auth.getSession();
+                if (error) throw error;
+                if (session) {
+                    html += `<div class="test-result success"><strong>✅</strong> Usuário autenticado: ${session.user.email}</div>`;
+                } else {
+                    html += '<div class="test-result warning"><strong>ℹ️</strong> Nenhum usuário autenticado (normal)</div>';
+                }
+            } catch (err) {
+                html += `<div class="test-result error"><strong>❌</strong> Erro de autenticação: ${err.message}</div>`;
+            }
+
+            html += '<div class="test-result success"><strong>🎉</strong> Testes concluídos!</div>';
+            resultsDiv.innerHTML = html;
+        };
+
+        window.clearResults = function() {
+            document.getElementById('results').innerHTML = '';
+        };
+    </script>
+</body>
+</html>
+
+
