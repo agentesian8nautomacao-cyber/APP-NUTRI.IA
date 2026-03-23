@@ -4,10 +4,18 @@
 @tailwind utilities;
 
 /* Custom Styles */
+html,
+body,
+#root {
+  min-height: 100%;
+  height: 100%;
+}
+
 body {
   font-family: 'Inter', sans-serif;
   background-color: #F5F1E8; /* Cream background */
   color: #1A4D2E; /* Deep Green text */
+  margin: 0;
 }
 
 h1, h2, h3, h4, .serif {
