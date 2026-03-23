@@ -3,6 +3,8 @@ import { ArrowLeft, ShieldCheck } from 'lucide-react';
 
 const BRAND = 'Nutri.ai';
 const OPERATOR_LEGAL = 'PHBsoluções';
+/** Nome de exibição do responsável (texto introdutório). */
+const OPERATOR_LABEL = OPERATOR_LEGAL;
 const OPERATOR_LOCATION = 'Aracaju, Sergipe, Brasil';
 
 /** E-mail oficial para LGPD / privacidade (alinhado à política publicada do app). */
