@@ -260,8 +260,28 @@ export const authService = {
     if (!newPassword || newPassword.length < 6) {
       throw new Error('A senha deve ter pelo menos 6 caracteres.');
     }
+    let {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session) {
+      const refreshed = await supabase.auth.refreshSession();
+      session = refreshed.data.session ?? null;
+    }
+    if (!session?.user) {
+      throw new Error(
+        'Sessão expirada ou o link já foi usado. Peça um novo e-mail em «Esqueci a senha» e abra o link logo em seguida.'
+      );
+    }
     const { data, error } = await supabase.auth.updateUser({ password: newPassword });
-    if (error) throw error;
+    if (error) {
+      const msg = (error.message || '').toLowerCase();
+      if (msg.includes('session') || msg.includes('jwt')) {
+        throw new Error(
+          'Não foi possível validar a sessão. Peça um novo link de recuperação e tente de novo (use o mesmo navegador e não feche o separador antes de guardar a senha).'
+        );
+      }
+      throw error;
+    }
     return data;
   },
 
@@ -275,24 +295,31 @@ export const authService = {
   async getCurrentUser() {
     try {
       const { data: { user }, error } = await supabase.auth.getUser();
-      // Se não houver sessão, retornar null ao invés de lançar erro
+      if (!error && user) return user;
+
       if (error) {
-        // "Auth session missing" é esperado quando não há sessão
-        if (error.message?.includes('session') || 
-            error.message?.includes('Auth session missing') ||
-            error.message?.includes('User from sub claim in JWT does not exist') ||
-            error.status === 403) {
-          console.warn('⚠️ [DEBUG] Sessão inválida ou usuário não existe no JWT:', error.message);
-          // Tentar limpar sessão inválida
+        const em = error.message || '';
+        // getUser() pode falhar temporariamente; getSession() ainda tem o utilizador (ex.: fluxo de recuperação)
+        if (
+          em.includes('session') ||
+          em.includes('Auth session missing') ||
+          error.status === 403
+        ) {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user) return session.user;
+          console.warn('⚠️ [DEBUG] Sem sessão no cliente:', em);
+          return null;
+        }
+        if (em.includes('User from sub claim in JWT does not exist')) {
+          console.warn('⚠️ [DEBUG] JWT inválido no servidor:', em);
           await supabase.auth.signOut();
           return null;
         }
         throw error;
       }
-      return user;
+      return null;
     } catch (err: any) {
       console.error('❌ [DEBUG] Erro ao obter usuário:', err);
-      // Se for erro de JWT inválido, limpar sessão
       if (err.message?.includes('JWT') || err.message?.includes('sub claim')) {
         await supabase.auth.signOut();
       }

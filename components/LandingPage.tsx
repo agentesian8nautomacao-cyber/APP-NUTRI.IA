@@ -650,8 +650,17 @@ const LandingPage: React.FC<LandingPageProps> = ({
                                     try {
                                         await authService.updatePassword(resetPassword);
                                         onPasswordRecoveryFinished?.();
-                                        await new Promise((r) => setTimeout(r, 80));
-                                        onGetStarted();
+                                        try {
+                                            await authService.signOut();
+                                        } catch {
+                                            /* ignorar */
+                                        }
+                                        setResetPassword('');
+                                        setResetPasswordConfirm('');
+                                        setScreen('login');
+                                        alert(
+                                            'Senha atualizada com sucesso. Entre com o seu e-mail e a nova senha.'
+                                        );
                                     } catch (err: any) {
                                         setResetError(
                                             err?.message ||
