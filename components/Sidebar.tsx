@@ -2,7 +2,6 @@
 import React from 'react';
 import { 
   Home, 
-  Sparkles, 
   UtensilsCrossed, 
   TrendingUp, 
   Heart, 
@@ -13,7 +12,8 @@ import {
   Settings, 
   X,
   ScrollText,
-  Dumbbell
+  Dumbbell,
+  LogOut
 } from 'lucide-react';
 import { AppView } from '../types';
 
@@ -22,9 +22,10 @@ interface SidebarProps {
   onClose: () => void;
   currentView: AppView;
   onNavigate: (view: AppView) => void;
+  onSignOut: () => void | Promise<void>;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, currentView, onNavigate }) => {
+const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, currentView, onNavigate, onSignOut }) => {
   
   const menuItems = [
     { id: 'dashboard', label: 'Início', icon: Home },
@@ -94,8 +95,27 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, currentView, onNavig
           })}
         </div>
 
+        {/* Sair da Conta — mesmo fluxo que Configurações */}
+        <div className="px-4 pb-2 shrink-0">
+          <button
+            type="button"
+            onClick={async () => {
+              onClose();
+              await onSignOut();
+            }}
+            className="w-full flex items-center justify-between gap-4 px-4 py-4 rounded-[1.5rem] transition-all duration-200 group border border-orange-400/25 bg-orange-500/10 hover:bg-orange-500/20 text-orange-200"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-full bg-orange-500/25 flex items-center justify-center shrink-0 group-hover:bg-orange-500/35 transition-colors">
+                <LogOut className="text-orange-200" size={20} />
+              </div>
+              <span className="font-bold text-sm tracking-wide">Sair da Conta</span>
+            </div>
+          </button>
+        </div>
+
         {/* Footer */}
-        <div className="p-6">
+        <div className="p-6 pt-2">
           <div className="bg-[#4F6F52] rounded-[2rem] p-5 flex items-center gap-3 shadow-inner">
             <div className="w-10 h-10 rounded-full bg-[#F5F1E8] flex items-center justify-center text-[#1A4D2E] font-bold text-xs shadow-md">
               PRO

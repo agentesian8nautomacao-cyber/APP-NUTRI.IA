@@ -1,13 +1,14 @@
 import React from 'react';
 import { ArrowLeft, ShieldCheck } from 'lucide-react';
 
-/** Substitua pelo nome da marca ou razão social do controlador dos dados (LGPD). */
-const OPERATOR_LABEL = 'Nutri.AI';
+const BRAND = 'Nutri.ai';
+const OPERATOR_LEGAL = 'PHBsoluções';
+const OPERATOR_LOCATION = 'Aracaju, Sergipe, Brasil';
 
-/** E-mail para solicitações de privacidade, acesso e exclusão de dados. */
-const PRIVACY_CONTACT_EMAIL = 'privacidade@nutri.ai';
+/** E-mail oficial para LGPD / privacidade (alinhado à política publicada do app). */
+const PRIVACY_CONTACT_EMAIL = 'phbsolucoes@gmail.com';
 
-const LAST_UPDATED = '21/03/2025';
+const LAST_UPDATED = '22/03/2026';
 
 interface PrivacyViewProps {
   onBack: () => void;
@@ -54,8 +55,9 @@ const PrivacyView: React.FC<PrivacyViewProps> = ({ onBack }) => {
       <div className="space-y-4">
         <Section title="1. Quem é responsável">
           <p>
-            O responsável pelo tratamento dos dados pessoais coletados por meio deste serviço é o{' '}
-            <strong>{OPERATOR_LABEL}</strong>, na medida em que define as finalidades e os meios do tratamento.
+            O responsável pelo tratamento dos dados pessoais coletados por meio do <strong>{BRAND}</strong> é a{' '}
+            <strong>{OPERATOR_LEGAL}</strong>, com sede em {OPERATOR_LOCATION}, na medida em que define as
+            finalidades e os meios do tratamento.
           </p>
         </Section>
 
@@ -63,7 +65,8 @@ const PrivacyView: React.FC<PrivacyViewProps> = ({ onBack }) => {
           <ul className="list-disc pl-5 space-y-2">
             <li>
               <strong>Conta:</strong> e-mail, nome (se informado), dados de autenticação e metadados de cadastro
-              (por exemplo, código de convite associado ao registro).
+              (por exemplo, cupom ou código de convite associado ao registro, plano e status de assinatura quando
+              aplicável).
             </li>
             <li>
               <strong>Perfil e plano alimentar:</strong> informações de saúde e estilo de vida que você informar no
@@ -120,10 +123,29 @@ const PrivacyView: React.FC<PrivacyViewProps> = ({ onBack }) => {
               áudio, somente quando você utiliza recursos que disparam chamadas à IA.
             </li>
             <li>
-              <strong>Hospedagem do site/aplicativo</strong> (por exemplo, Vercel ou equivalente) — entrega do
-              front-end e ativos estáticos.
+              <strong>Hospedagem do site/aplicativo</strong> (por exemplo, Vercel) — entrega do front-end e ativos
+              estáticos.
+            </li>
+            <li>
+              <strong>Cakto ou outro provedor de pagamentos</strong> — quando você adquire ou renova um plano, dados
+              necessários à transação (como identificação da compra e e-mail) podem ser tratados pelo provedor,
+              conforme a política de privacidade dele.
+            </li>
+            <li>
+              <strong>Resend ou serviço equivalente</strong> — envio de e-mails transacionais (por exemplo,
+              confirmações relacionadas à conta ou ao serviço), quando essa integração estiver ativa.
             </li>
           </ul>
+          <p className="mt-2 text-xs text-[#4F6F52]">
+            Políticas dos provedores:{' '}
+            <a href="https://supabase.com/privacy" className="text-[#1A4D2E] underline underline-offset-2" target="_blank" rel="noopener noreferrer">
+              Supabase
+            </a>
+            {' · '}
+            <a href="https://policies.google.com/privacy" className="text-[#1A4D2E] underline underline-offset-2" target="_blank" rel="noopener noreferrer">
+              Google
+            </a>
+          </p>
           <p className="mt-3">
             Não vendemos seus dados pessoais. Qualquer novo parceiro relevante para tratamento de dados deve ser
             refletido em atualizações desta política.
@@ -155,7 +177,7 @@ const PrivacyView: React.FC<PrivacyViewProps> = ({ onBack }) => {
           <p>
             Para exercer seus direitos ou tirar dúvidas sobre privacidade, escreva para:{' '}
             <a
-              href={`mailto:${PRIVACY_CONTACT_EMAIL}?subject=Privacidade%20-%20Nutri.AI`}
+              href={`mailto:${PRIVACY_CONTACT_EMAIL}?subject=${encodeURIComponent('Política de Privacidade - Nutri.ai')}`}
               className="text-[#1A4D2E] font-semibold underline underline-offset-2 break-all"
             >
               {PRIVACY_CONTACT_EMAIL}

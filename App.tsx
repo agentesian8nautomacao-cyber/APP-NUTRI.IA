@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { UserProfile, DailyPlan, LogItem, MealItem, WellnessState, AppView, ScanHistoryItem, Gender, ActivityLevel, Goal } from './types';
 import { generateDietPlan } from './services/geminiService';
 import { authService, planService, surveyService, profileService } from './services/supabaseService';
@@ -23,6 +23,7 @@ import ProfileView from './components/ProfileView';
 import SettingsView from './components/SettingsView';
 import PersonalChat from './components/PersonalChat';
 import TrialExpiredModal from './components/TrialExpiredModal';
+import PrivacyView from './components/PrivacyView';
 
 import { MessageCircle, Camera, Home, Menu, BookOpen, Phone, User } from 'lucide-react';
 
@@ -110,6 +111,13 @@ const MOCK_PLAN: DailyPlan = {
 const App: React.FC = () => {
   // --- State Management ---
   const [view, setView] = useState<AppView>('landing');
+  /** Última tela antes de abrir Privacidade — usado no botão Voltar da política. */
+  const viewBeforeSecurityRef = useRef<AppView>('dashboard');
+  useEffect(() => {
+    if (view !== 'security') {
+      viewBeforeSecurityRef.current = view;
+    }
+  }, [view]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false); // Flag para evitar geração duplicada
@@ -162,6 +170,8 @@ const App: React.FC = () => {
   const [isDevMode, setIsDevMode] = useState(false); // Flag para modo DEV
   const [isDeveloper, setIsDeveloper] = useState(false); // Flag para desenvolvedor
   const [isProcessingGetStarted, setIsProcessingGetStarted] = useState(false); // Flag para prevenir múltiplas chamadas
+  /** Sessão de recuperação de senha (link do e-mail Supabase). */
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
 
   // --- Effects ---
   
@@ -195,6 +205,19 @@ const App: React.FC = () => {
     }
   }, []);
 
+  const handleSignOut = useCallback(async () => {
+    try {
+      await authService.signOut();
+      setIsAuthenticated(false);
+      setIsDeveloper(false);
+      setUserProfile(null);
+      setDietPlan(null);
+      setView('landing');
+    } catch (error) {
+      console.error('Erro ao fazer logout:', error);
+    }
+  }, []);
+
   // Verificar autenticação ao carregar o app
   useEffect(() => {
     const checkAuth = async () => {
@@ -223,18 +246,30 @@ const App: React.FC = () => {
     };
     
     checkAuth();
+
+    // Link de recuperação (#type=recovery ou PKCE): garantir fluxo de nova senha na landing
+    const hash = typeof window !== 'undefined' ? window.location.hash : '';
+    if (hash.includes('type=recovery') || hash.includes('type%3Drecovery')) {
+      setIsPasswordRecovery(true);
+      setView('landing');
+    }
     
     // Observar mudanças de autenticação
-    const { data: { subscription } } = authService.onAuthStateChange(async (user) => {
+    const { data: { subscription } } = authService.onAuthStateChange(async (user, event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsPasswordRecovery(true);
+        setIsAuthenticated(!!user);
+        setView('landing');
+        await checkIsDeveloper();
+        return;
+      }
       setIsAuthenticated(!!user);
       if (user) {
         await checkIsDeveloper();
-        // Não redirecionar automaticamente quando detectar sessão
       } else {
         setIsDeveloper(false);
-        if (view !== 'landing') {
-          setView('landing');
-        }
+        setIsPasswordRecovery(false);
+        setView((v) => (v !== 'landing' && v !== 'onboarding' ? 'landing' : v));
       }
     });
     
@@ -552,6 +587,13 @@ const App: React.FC = () => {
   if (view === 'landing') {
       return (
         <LandingPage 
+            passwordRecoveryActive={isPasswordRecovery}
+            onPasswordRecoveryFinished={() => {
+              setIsPasswordRecovery(false);
+              if (typeof window !== 'undefined') {
+                window.history.replaceState(null, '', window.location.pathname + window.location.search);
+              }
+            }}
             onGetStarted={async () => {
               // Prevenir múltiplas chamadas simultâneas
               if (isProcessingGetStarted) {
@@ -698,18 +740,7 @@ const App: React.FC = () => {
               }
             }} 
             onAnalyze={() => setIsScannerOpen(true)}
-            onLogout={async () => {
-              try {
-                await authService.signOut();
-                setIsAuthenticated(false);
-                setIsDeveloper(false);
-                setUserProfile(null);
-                setDietPlan(null);
-                setView('landing');
-              } catch (error) {
-                console.error('Erro ao fazer logout:', error);
-              }
-            }}
+            onLogout={handleSignOut}
             isAuthenticated={isAuthenticated}
         />
       );
@@ -792,6 +823,7 @@ const App: React.FC = () => {
             onClose={() => setIsSidebarOpen(false)} 
             currentView={view} 
             onNavigate={setView}
+            onSignOut={handleSignOut}
         />
 
         {/* Main Content Area */}
@@ -861,14 +893,18 @@ const App: React.FC = () => {
                     state={wellness} 
                     onUpdate={setWellness} 
                     userProfile={userProfile} 
-                    onUpdateProfile={handleUpdateProfile} 
+                    onUpdateProfile={handleUpdateProfile}
+                    onOpenPrivacy={() => setView('security')}
+                    onSignOut={handleSignOut}
                 />
             )}
-            {view === 'security' && <div className="p-6"><h2 className="font-serif text-2xl text-[#1A4D2E]">Privacidade (Em Breve)</h2></div>}
+            {view === 'security' && (
+                <PrivacyView onBack={() => setView(viewBeforeSecurityRef.current)} />
+            )}
         </main>
 
         {/* Bottom Navigation & Floating Actions */}
-        {!isScannerOpen && view !== 'analyzer' && !isChatOpen && !isLiveOpen && view !== 'profile' && view !== 'personal_chat' && (
+        {!isScannerOpen && view !== 'analyzer' && !isChatOpen && !isLiveOpen && view !== 'profile' && view !== 'personal_chat' && view !== 'security' && (
             <>
                 {/* Call Chef Button (Floating above menu) */}
                 <button 

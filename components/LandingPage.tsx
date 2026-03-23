@@ -1,6 +1,6 @@
 
-import React, { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, Ticket, ChevronRight, ChefHat, Check, Star, Eye, EyeOff } from 'lucide-react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { ArrowLeft, Ticket, ChevronRight, ChefHat, Check, Star, Eye, EyeOff, Mail } from 'lucide-react';
 import { couponService, authFlowService, authService } from '../services/supabaseService';
 
 interface LandingPageProps {
@@ -9,10 +9,23 @@ interface LandingPageProps {
   onLogout?: () => void;
   isAuthenticated?: boolean;
   onShowSurvey?: () => void; // Callback para mostrar enquete após cadastro
+  /** Abre a tela de nova senha (link do e-mail de recuperação). */
+  passwordRecoveryActive?: boolean;
+  onPasswordRecoveryFinished?: () => void;
 }
 
-const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onLogout, isAuthenticated = false, onShowSurvey }) => {
-  const [screen, setScreen] = useState<'home' | 'login' | 'coupon' | 'register'>('home');
+const LandingPage: React.FC<LandingPageProps> = ({
+  onGetStarted,
+  onAnalyze,
+  onLogout,
+  isAuthenticated = false,
+  onShowSurvey,
+  passwordRecoveryActive = false,
+  onPasswordRecoveryFinished,
+}) => {
+  const [screen, setScreen] = useState<
+    'home' | 'login' | 'coupon' | 'register' | 'forgot_password' | 'reset_password'
+  >('home');
   const [couponCode, setCouponCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
@@ -23,6 +36,25 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onLo
   const [loginPassword, setLoginPassword] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotError, setForgotError] = useState<string | null>(null);
+  const [forgotSuccess, setForgotSuccess] = useState(false);
+
+  const [resetPassword, setResetPassword] = useState('');
+  const [resetPasswordConfirm, setResetPasswordConfirm] = useState('');
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  const [showResetPasswordConfirm, setShowResetPasswordConfirm] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
+
+  useLayoutEffect(() => {
+    if (passwordRecoveryActive) {
+      setScreen('reset_password');
+      setResetError(null);
+    }
+  }, [passwordRecoveryActive]);
   
   // Slider State
   const [sliderPosition, setSliderPosition] = useState(0);
@@ -349,13 +381,239 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onAnalyze, onLo
                                         </button>
                                     </div>
                                 </div>
+
+                                <div className="flex justify-end pt-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setForgotEmail(loginEmail.trim());
+                                            setForgotError(null);
+                                            setForgotSuccess(false);
+                                            setScreen('forgot_password');
+                                        }}
+                                        className="text-xs font-bold text-[#4F6F52] hover:text-[#1A4D2E] underline decoration-2 underline-offset-4"
+                                    >
+                                        Esqueci a senha
+                                    </button>
+                                </div>
                                 
                                 <button 
                                     type="submit" 
                                     disabled={isLoggingIn || !loginEmail.trim() || !loginPassword.trim()}
-                                    className="w-full bg-[#1A4D2E] text-white py-5 rounded-2xl font-bold text-lg mt-6 hover:scale-[1.02] transition-transform shadow-lg shadow-[#1A4D2E]/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="w-full bg-[#1A4D2E] text-white py-5 rounded-2xl font-bold text-lg mt-4 hover:scale-[1.02] transition-transform shadow-lg shadow-[#1A4D2E]/20 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     {isLoggingIn ? 'Entrando...' : 'Entrar'}
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ESQUECI A SENHA — envia e-mail via Supabase (SMTP/Resend) */}
+            {screen === 'forgot_password' && (
+                <div className="flex-1 flex flex-col justify-center animate-in fade-in slide-in-from-bottom duration-500 max-w-md mx-auto w-full">
+                    <div className="bg-white/80 backdrop-blur-xl p-8 rounded-[2.5rem] shadow-2xl border border-white/60 relative">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setForgotError(null);
+                                setForgotSuccess(false);
+                                setScreen('login');
+                            }}
+                            className="absolute top-8 left-8 text-gray-400 hover:text-black"
+                            aria-label="Voltar ao login"
+                        >
+                            <ArrowLeft />
+                        </button>
+                        <div className="mt-8">
+                            <div className="w-14 h-14 rounded-2xl bg-[#1A4D2E]/10 flex items-center justify-center text-[#1A4D2E] mb-4">
+                                <Mail size={28} />
+                            </div>
+                            <h2 className="font-serif text-3xl mb-2 text-[#1A4D2E]">Recuperar senha</h2>
+                            <p className="text-gray-500 text-sm mb-6 leading-relaxed">
+                                Enviaremos um link seguro para o e-mail cadastrado. Verifique também a pasta de spam.
+                            </p>
+
+                            {forgotSuccess ? (
+                                <div className="space-y-4">
+                                    <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-800 leading-relaxed">
+                                        Se existir uma conta com esse e-mail, você receberá as instruções em instantes.
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setScreen('login')}
+                                        className="w-full bg-[#1A4D2E] text-white py-4 rounded-2xl font-bold text-lg hover:scale-[1.02] transition-transform shadow-lg"
+                                    >
+                                        Voltar ao login
+                                    </button>
+                                </div>
+                            ) : (
+                                <form
+                                    onSubmit={async (e) => {
+                                        e.preventDefault();
+                                        setForgotError(null);
+                                        if (!forgotEmail.trim()) {
+                                            setForgotError('Informe seu e-mail.');
+                                            return;
+                                        }
+                                        setForgotLoading(true);
+                                        try {
+                                            await authService.requestPasswordReset(forgotEmail.trim());
+                                            setForgotSuccess(true);
+                                        } catch (err: any) {
+                                            setForgotError(
+                                                err?.message ||
+                                                    'Não foi possível enviar o e-mail. Tente novamente mais tarde.'
+                                            );
+                                        } finally {
+                                            setForgotLoading(false);
+                                        }
+                                    }}
+                                    className="space-y-4"
+                                >
+                                    {forgotError && (
+                                        <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">
+                                            {forgotError}
+                                        </div>
+                                    )}
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase text-gray-400 mb-2 pl-2">
+                                            E-mail
+                                        </label>
+                                        <input
+                                            type="email"
+                                            value={forgotEmail}
+                                            onChange={(e) => setForgotEmail(e.target.value)}
+                                            placeholder="seu@email.com"
+                                            autoComplete="email"
+                                            disabled={forgotLoading}
+                                            className="w-full bg-[#F5F1E8] border border-transparent rounded-2xl p-4 outline-none focus:border-[#1A4D2E] focus:bg-white transition-colors text-[#1A4D2E] disabled:opacity-50"
+                                            required
+                                        />
+                                    </div>
+                                    <button
+                                        type="submit"
+                                        disabled={forgotLoading || !forgotEmail.trim()}
+                                        className="w-full bg-[#1A4D2E] text-white py-5 rounded-2xl font-bold text-lg hover:scale-[1.02] transition-transform shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {forgotLoading ? 'Enviando...' : 'Enviar link'}
+                                    </button>
+                                </form>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* NOVA SENHA — após abrir o link do e-mail */}
+            {screen === 'reset_password' && (
+                <div className="flex-1 flex flex-col justify-center animate-in fade-in slide-in-from-bottom duration-500 max-w-md mx-auto w-full">
+                    <div className="bg-white/80 backdrop-blur-xl p-8 rounded-[2.5rem] shadow-2xl border border-white/60 relative">
+                        <div className="mt-4">
+                            <h2 className="font-serif text-3xl mb-2 text-[#1A4D2E]">Nova senha</h2>
+                            <p className="text-gray-500 text-sm mb-6">
+                                Defina uma nova senha para sua conta Nutri.ai.
+                            </p>
+
+                            <form
+                                onSubmit={async (e) => {
+                                    e.preventDefault();
+                                    setResetError(null);
+                                    if (resetPassword.length < 6) {
+                                        setResetError('A senha deve ter pelo menos 6 caracteres.');
+                                        return;
+                                    }
+                                    if (resetPassword !== resetPasswordConfirm) {
+                                        setResetError('As senhas não coincidem.');
+                                        return;
+                                    }
+                                    setResetLoading(true);
+                                    try {
+                                        await authService.updatePassword(resetPassword);
+                                        onPasswordRecoveryFinished?.();
+                                        await new Promise((r) => setTimeout(r, 80));
+                                        onGetStarted();
+                                    } catch (err: any) {
+                                        setResetError(
+                                            err?.message ||
+                                                'Não foi possível atualizar a senha. Peça um novo link e tente de novo.'
+                                        );
+                                    } finally {
+                                        setResetLoading(false);
+                                    }
+                                }}
+                                className="space-y-4"
+                            >
+                                {resetError && (
+                                    <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">
+                                        {resetError}
+                                    </div>
+                                )}
+                                <div>
+                                    <label className="block text-xs font-bold uppercase text-gray-400 mb-2 pl-2">
+                                        Nova senha
+                                    </label>
+                                    <div className="relative">
+                                        <input
+                                            type={showResetPassword ? 'text' : 'password'}
+                                            value={resetPassword}
+                                            onChange={(e) => setResetPassword(e.target.value)}
+                                            placeholder="Mínimo 6 caracteres"
+                                            autoComplete="new-password"
+                                            disabled={resetLoading}
+                                            className="w-full bg-[#F5F1E8] border border-transparent rounded-2xl p-4 pr-12 outline-none focus:border-[#1A4D2E] focus:bg-white transition-colors text-[#1A4D2E] disabled:opacity-50"
+                                            required
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowResetPassword(!showResetPassword)}
+                                            className="absolute right-4 top-1/2 -translate-y-1/2 text-[#1A4D2E]/60 hover:text-[#1A4D2E]"
+                                            aria-label={showResetPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                                        >
+                                            {showResetPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                                        </button>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold uppercase text-gray-400 mb-2 pl-2">
+                                        Confirmar senha
+                                    </label>
+                                    <div className="relative">
+                                        <input
+                                            type={showResetPasswordConfirm ? 'text' : 'password'}
+                                            value={resetPasswordConfirm}
+                                            onChange={(e) => setResetPasswordConfirm(e.target.value)}
+                                            placeholder="Repita a senha"
+                                            autoComplete="new-password"
+                                            disabled={resetLoading}
+                                            className="w-full bg-[#F5F1E8] border border-transparent rounded-2xl p-4 pr-12 outline-none focus:border-[#1A4D2E] focus:bg-white transition-colors text-[#1A4D2E] disabled:opacity-50"
+                                            required
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                setShowResetPasswordConfirm(!showResetPasswordConfirm)
+                                            }
+                                            className="absolute right-4 top-1/2 -translate-y-1/2 text-[#1A4D2E]/60 hover:text-[#1A4D2E]"
+                                            aria-label={
+                                                showResetPasswordConfirm ? 'Ocultar senha' : 'Mostrar senha'
+                                            }
+                                        >
+                                            {showResetPasswordConfirm ? <EyeOff size={20} /> : <Eye size={20} />}
+                                        </button>
+                                    </div>
+                                </div>
+                                <button
+                                    type="submit"
+                                    disabled={
+                                        resetLoading ||
+                                        !resetPassword.trim() ||
+                                        !resetPasswordConfirm.trim()
+                                    }
+                                    className="w-full bg-[#1A4D2E] text-white py-5 rounded-2xl font-bold text-lg mt-2 hover:scale-[1.02] transition-transform shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {resetLoading ? 'Salvando...' : 'Salvar nova senha'}
                                 </button>
                             </form>
                         </div>

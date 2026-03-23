@@ -8,9 +8,11 @@ interface SettingsViewProps {
     onUpdate: (s: WellnessState) => void;
     userProfile: UserProfile;
     onUpdateProfile: (p: UserProfile) => void;
+    onOpenPrivacy?: () => void;
+    onSignOut?: () => void | Promise<void>;
 }
 
-const SettingsView: React.FC<SettingsViewProps> = ({ state, onUpdate, userProfile, onUpdateProfile }) => {
+const SettingsView: React.FC<SettingsViewProps> = ({ state, onUpdate, userProfile, onUpdateProfile, onOpenPrivacy, onSignOut }) => {
   // State for In-App Visual Notification (Fallback)
   const [fakeNotification, setFakeNotification] = useState<{title: string, body: string, icon?: any} | null>(null);
   
@@ -427,7 +429,11 @@ const SettingsView: React.FC<SettingsViewProps> = ({ state, onUpdate, userProfil
 
       {/* Account Actions */}
       <div className="bg-white p-2 rounded-[2rem] shadow-sm border border-[#1A4D2E]/5">
-           <button className="w-full p-4 flex items-center justify-between hover:bg-[#F5F1E8] rounded-2xl transition-colors">
+           <button
+               type="button"
+               onClick={() => onOpenPrivacy?.()}
+               className="w-full p-4 flex items-center justify-between hover:bg-[#F5F1E8] rounded-2xl transition-colors text-left"
+           >
                <div className="flex items-center gap-3">
                    <div className="bg-[#1A4D2E]/5 p-2 rounded-full"><Shield className="text-[#1A4D2E]" size={20} /></div>
                    <span className="text-[#1A4D2E] font-bold">Privacidade & Dados</span>
@@ -436,7 +442,11 @@ const SettingsView: React.FC<SettingsViewProps> = ({ state, onUpdate, userProfil
            </button>
            <div className="h-[1px] bg-gray-100 mx-4"></div>
            
-           <button className="w-full p-4 flex items-center justify-between hover:bg-orange-50 rounded-2xl transition-colors group">
+           <button
+               type="button"
+               onClick={() => onSignOut?.()}
+               className="w-full p-4 flex items-center justify-between hover:bg-orange-50 rounded-2xl transition-colors group"
+           >
                <div className="flex items-center gap-3">
                    <div className="bg-orange-50 p-2 rounded-full group-hover:bg-orange-100"><LogOut className="text-orange-500" size={20} /></div>
                    <span className="text-orange-500 font-bold">Sair da Conta</span>

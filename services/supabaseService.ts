@@ -110,6 +110,18 @@ function dailyPlanFromDB(dbPlan: any, meals: any[]): DailyPlan {
 // SERVIÇOS DE AUTENTICAÇÃO
 // ============================================
 
+/** URL base do app para links do Supabase (recovery, magic link). Deve constar em Auth → Redirect URLs. */
+export function getAuthSiteUrl(): string {
+  const fromEnv = import.meta.env.VITE_SITE_URL as string | undefined;
+  if (fromEnv && fromEnv.trim()) {
+    return fromEnv.trim().replace(/\/$/, '');
+  }
+  if (typeof window !== 'undefined') {
+    return window.location.origin.replace(/\/$/, '');
+  }
+  return '';
+}
+
 export const authService = {
   // Registrar novo usuário (sem lógica de cupom)
   async signUp(email: string, password: string) {
@@ -196,6 +208,36 @@ export const authService = {
     return data;
   },
 
+  /**
+   * Envia e-mail de recuperação de senha (SMTP/Resend configurado no Supabase).
+   * redirectTo deve estar em Authentication → URL Configuration → Redirect URLs.
+   */
+  async requestPasswordReset(email: string) {
+    const trimmed = email.trim().toLowerCase();
+    if (!trimmed) {
+      throw new Error('Informe seu e-mail.');
+    }
+    const base = getAuthSiteUrl();
+    if (!base) {
+      throw new Error('URL do site não configurada. Defina VITE_SITE_URL ou acesse pelo navegador.');
+    }
+    const redirectTo = `${base}/`;
+    const { error } = await supabase.auth.resetPasswordForEmail(trimmed, {
+      redirectTo,
+    });
+    if (error) throw error;
+  },
+
+  /** Define nova senha durante sessão de recuperação (após clicar no link do e-mail). */
+  async updatePassword(newPassword: string) {
+    if (!newPassword || newPassword.length < 6) {
+      throw new Error('A senha deve ter pelo menos 6 caracteres.');
+    }
+    const { data, error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) throw error;
+    return data;
+  },
+
   // Fazer logout
   async signOut() {
     const { error } = await supabase.auth.signOut();
@@ -231,10 +273,13 @@ export const authService = {
     }
   },
 
-  // Observar mudanças de autenticação
-  onAuthStateChange(callback: (user: any) => void) {
+  /**
+   * Observar mudanças de autenticação.
+   * `event` inclui `PASSWORD_RECOVERY` quando o usuário abre o link do e-mail de reset.
+   */
+  onAuthStateChange(callback: (user: any, event?: string) => void) {
     return supabase.auth.onAuthStateChange((event, session) => {
-      callback(session?.user || null);
+      callback(session?.user || null, event);
     });
   },
 
