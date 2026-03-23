@@ -234,12 +234,16 @@ export const authService = {
       });
       const status = (error as { status?: number }).status;
       const msg = (error.message || '').toLowerCase();
-      // 500 no /recover costuma ser falha ao enviar e-mail (SMTP Resend), não do app web
+      // 500 no /recover costuma ser falha ao enviar e-mail (SMTP), não do app web
       if (status === 500 || msg.includes('error sending') || msg.includes('smtp')) {
+        console.error(
+          '[Nutri.ai Auth] Dica para quem mantém o projeto: Supabase → Authentication → Emails → SMTP ' +
+            '(Resend: host smtp.resend.com, porta 465, usuário resend, senha = API key; remetente em domínio verificado). ' +
+            'Logs → Auth no painel do Supabase.'
+        );
         throw new Error(
-          'O Supabase não conseguiu enviar o e-mail (erro no servidor). ' +
-            'Revise Authentication → Emails → SMTP: host smtp.resend.com, porta 465, usuário resend, senha = API key do Resend, ' +
-            'e um remetente de um domínio verificado no Resend. Veja também Logs → Auth no painel do Supabase.'
+          'Não foi possível enviar o e-mail de recuperação neste momento. Tente de novo em alguns minutos. ' +
+            'Se o problema continuar, entre em contato com o suporte do Nutri.ai.'
         );
       }
       if (status === 429) {
