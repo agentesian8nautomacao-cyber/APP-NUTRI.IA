@@ -487,12 +487,12 @@ export const couponService = {
     // Verificar se o cupom está vinculado a um pagamento Cakto
     // Se estiver, verificar se o pagamento está ativo e tem contas disponíveis
     if (data.cakto_customer_id) {
-      // Verificar se o pagamento está ativo
+      // Schema real: subscription_status / subscription_expiry (e às vezes expiry_date no webhook Cakto)
       const { data: paymentProfile, error: paymentError } = await supabase
         .from('user_profiles')
-        .select('id, status, expiry_date, cakto_customer_id')
+        .select('*')
         .eq('cakto_customer_id', data.cakto_customer_id)
-        .eq('status', 'active')
+        .eq('subscription_status', 'active')
         .limit(1)
         .maybeSingle();
 
@@ -500,15 +500,15 @@ export const couponService = {
         throw paymentError;
       }
 
-      // Se não encontrou perfil ativo, o pagamento não está ativo
       if (!paymentProfile) {
         throw new Error('PAGAMENTO_INATIVO');
       }
 
-      // Verificar se o pagamento não expirou
-      if (paymentProfile.expiry_date) {
-        const expiryDate = new Date(paymentProfile.expiry_date);
-        if (expiryDate < new Date()) {
+      const row = paymentProfile as Record<string, unknown>;
+      const expiryRaw = row.subscription_expiry ?? row.expiry_date;
+      if (expiryRaw != null && String(expiryRaw).length > 0) {
+        const expiryDate = new Date(String(expiryRaw));
+        if (!Number.isNaN(expiryDate.getTime()) && expiryDate < new Date()) {
           throw new Error('PAGAMENTO_EXPIRADO');
         }
       }
