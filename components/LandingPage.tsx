@@ -3,9 +3,29 @@ import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { ArrowLeft, Ticket, ChevronRight, ChefHat, Check, Star, Eye, EyeOff, Mail } from 'lucide-react';
 import { supabase } from '../services/supabaseClient';
 import { couponService, authFlowService, authService } from '../services/supabaseService';
+
+function mapCouponValidationError(err: unknown): string {
+  const msg =
+    err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string'
+      ? (err as { message: string }).message
+      : err instanceof Error
+        ? err.message
+        : String(err);
+  const map: Record<string, string> = {
+    CÓDIGO_VAZIO: 'Informe o código.',
+    CUPOM_INEXISTENTE: 'Código não encontrado ou inativo.',
+    CUPOM_ESGOTADO: 'Este código já atingiu o limite de usos.',
+    PAGAMENTO_INATIVO: 'O pagamento associado a este código não está ativo.',
+    PAGAMENTO_EXPIRADO: 'O pagamento associado a este código expirou.',
+  };
+  if (map[msg]) return map[msg];
+  if (msg.length > 0 && msg.length < 120 && !msg.includes('JWT') && !msg.includes('fetch')) return msg;
+  return 'Não foi possível validar o código. Tente novamente.';
+}
 import { sessionIsPasswordRecovery } from '../utils/authRecovery';
 import {
   getInviteCodeFromSearch,
+  urlHasSupabaseAuthCode,
   urlIndicatesPasswordRecoveryHash,
 } from '../utils/inviteUrlParams';
 
@@ -33,6 +53,10 @@ const LandingPage: React.FC<LandingPageProps> = ({
     'home' | 'login' | 'coupon' | 'register' | 'forgot_password' | 'reset_password'
   >('home');
   const [couponCode, setCouponCode] = useState('');
+  /** Código já validado no servidor (URL ou após clicar Validar). */
+  const [couponPreValidated, setCouponPreValidated] = useState(false);
+  const [couponValidateError, setCouponValidateError] = useState<string | null>(null);
+  const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
   const [isLoadingCode, setIsLoadingCode] = useState(false);
@@ -78,62 +102,116 @@ const LandingPage: React.FC<LandingPageProps> = ({
     return () => subscription.unsubscribe();
   }, []);
 
+  /**
+   * Cupom só via ?invite= / ?cupom= / ?coupon=.
+   * Se existir ?code=, é PKCE do Supabase — esperar sessão e abrir Nova senha se amr=recovery (nunca cupom).
+   */
   useEffect(() => {
     let cancelled = false;
-    void supabase.auth.getSession().then(({ data: { session } }) => {
-      if (cancelled || !session) return;
-      if (sessionIsPasswordRecovery(session)) {
-        setCouponCode('');
-        setScreen('reset_password');
+
+    const run = async () => {
+      const hash = typeof window !== 'undefined' ? window.location.hash : '';
+      if (urlIndicatesPasswordRecoveryHash(hash)) {
+        return;
       }
-    });
+
+      const search = window.location.search;
+      const urlParams = new URLSearchParams(search);
+
+      if (urlHasSupabaseAuthCode(search)) {
+        for (let i = 0; i < 25; i++) {
+          if (cancelled) return;
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user) {
+            if (sessionIsPasswordRecovery(session)) {
+              setCouponCode('');
+              setScreen('reset_password');
+            }
+            return;
+          }
+          await new Promise((r) => setTimeout(r, 120));
+        }
+        return;
+      }
+
+      const inviteFromUrl = getInviteCodeFromSearch(search);
+      if (inviteFromUrl) {
+        try {
+          await couponService.validateCoupon(inviteFromUrl);
+          if (cancelled) return;
+          setCouponCode(inviteFromUrl);
+          setCouponPreValidated(true);
+          setCouponValidateError(null);
+          setScreen('coupon');
+        } catch (e) {
+          if (cancelled) return;
+          setCouponCode(inviteFromUrl);
+          setCouponPreValidated(false);
+          setCouponValidateError(mapCouponValidationError(e));
+          setScreen('coupon');
+        }
+        return;
+      }
+
+      const email = urlParams.get('email');
+      if (email) {
+        setIsLoadingCode(true);
+        try {
+          const coupon = await couponService.getCouponByEmail(email);
+          if (cancelled) return;
+          if (coupon) {
+            try {
+              await couponService.validateCoupon(coupon.code);
+              if (cancelled) return;
+              setCouponCode(coupon.code);
+              setCouponPreValidated(true);
+              setCouponValidateError(null);
+              setScreen('coupon');
+            } catch (e) {
+              if (cancelled) return;
+              setCouponCode(coupon.code);
+              setCouponPreValidated(false);
+              setCouponValidateError(mapCouponValidationError(e));
+              setScreen('coupon');
+            }
+          }
+        } catch (error) {
+          console.error('Erro ao buscar código:', error);
+        } finally {
+          if (!cancelled) setIsLoadingCode(false);
+        }
+      }
+    };
+
+    void run();
     return () => {
       cancelled = true;
     };
   }, []);
 
-  // Cupom/convite na URL — use ?invite=, ?cupom= ou ?coupon= (recomendado). ?code= legado só se não for PKCE.
-  useEffect(() => {
-    const hash = typeof window !== 'undefined' ? window.location.hash : '';
-    if (urlIndicatesPasswordRecoveryHash(hash)) {
+  const handleCouponSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const raw = couponCode.trim();
+    if (!raw) {
+      setCouponValidateError('Informe o código de convite.');
       return;
     }
-
-    const search = window.location.search;
-    const urlParams = new URLSearchParams(search);
-    const email = urlParams.get('email');
-
-    const inviteFromUrl = getInviteCodeFromSearch(search);
-    if (inviteFromUrl) {
-      setCouponCode(inviteFromUrl);
-      setScreen('coupon');
+    if (couponPreValidated) {
+      setScreen('register');
       return;
     }
-
-    if (email) {
-      setIsLoadingCode(true);
-      couponService
-        .getCouponByEmail(email)
-        .then((coupon) => {
-          if (coupon) {
-            setCouponCode(coupon.code);
-            setScreen('coupon');
-          }
-        })
-        .catch((error) => {
-          console.error('Erro ao buscar código:', error);
-        })
-        .finally(() => {
-          setIsLoadingCode(false);
-        });
+    setCouponValidateError(null);
+    setIsValidatingCoupon(true);
+    try {
+      await couponService.validateCoupon(raw);
+      setCouponPreValidated(true);
+      setScreen('register');
+    } catch (err) {
+      setCouponPreValidated(false);
+      setCouponValidateError(mapCouponValidationError(err));
+    } finally {
+      setIsValidatingCoupon(false);
     }
-  }, []);
-
-  const handleCouponSubmit = (e: React.FormEvent) => {
-      e.preventDefault();
-      if (couponCode.trim()) {
-          setScreen('register');
-      }
   };
 
   const handleRegisterSubmit = async (e: React.FormEvent) => {
@@ -661,7 +739,17 @@ const LandingPage: React.FC<LandingPageProps> = ({
             {screen === 'coupon' && (
                 <div className="flex-1 flex flex-col justify-center animate-in fade-in slide-in-from-bottom duration-500 max-w-md mx-auto w-full">
                     <div className="bg-white/80 backdrop-blur-xl p-8 rounded-[2.5rem] shadow-2xl border border-white/60 relative">
-                        <button onClick={() => setScreen('home')} className="absolute top-8 left-8 text-gray-400 hover:text-black"><ArrowLeft /></button>
+                        <button
+                            type="button"
+                            onClick={() => {
+                              setScreen('home');
+                              setCouponValidateError(null);
+                              setCouponPreValidated(false);
+                            }}
+                            className="absolute top-8 left-8 text-gray-400 hover:text-black"
+                        >
+                            <ArrowLeft />
+                        </button>
                         <div className="mt-8 text-center">
                             <div className="w-16 h-16 bg-[#F5F1E8] rounded-full flex items-center justify-center mx-auto mb-6 text-[#1A4D2E]">
                                 <Ticket size={32} />
@@ -682,18 +770,32 @@ const LandingPage: React.FC<LandingPageProps> = ({
                                     <input 
                                         type="text" 
                                         value={couponCode}
-                                        onChange={(e) => setCouponCode(e.target.value)}
+                                        onChange={(e) => {
+                                          setCouponCode(e.target.value);
+                                          setCouponValidateError(null);
+                                          setCouponPreValidated(false);
+                                        }}
                                         placeholder="CÓDIGO" 
-                                        className="w-full bg-[#F5F1E8] border-2 border-transparent rounded-2xl p-4 outline-none focus:border-[#1A4D2E] focus:bg-white text-center font-bold text-xl tracking-widest uppercase transition-colors text-[#1A4D2E]" 
+                                        disabled={isValidatingCoupon}
+                                        className="w-full bg-[#F5F1E8] border-2 border-transparent rounded-2xl p-4 outline-none focus:border-[#1A4D2E] focus:bg-white text-center font-bold text-xl tracking-widest uppercase transition-colors text-[#1A4D2E] disabled:opacity-60" 
                                         required
                                     />
-                                    {couponCode && (
-                                        <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-sm text-green-700">
-                                            ✅ Código encontrado! Clique em "Validar" para continuar.
+                                    {couponValidateError && (
+                                        <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700 text-left">
+                                            {couponValidateError}
                                         </div>
                                     )}
-                                    <button type="submit" className="w-full bg-[#1A4D2E] text-white py-5 rounded-2xl font-bold text-lg hover:scale-[1.02] transition-transform shadow-lg">
-                                        Validar
+                                    {couponPreValidated && couponCode.trim() && !couponValidateError && (
+                                        <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-sm text-green-700 text-left">
+                                            Código verificado. Toque em Validar para continuar o cadastro.
+                                        </div>
+                                    )}
+                                    <button
+                                        type="submit"
+                                        disabled={isValidatingCoupon || !couponCode.trim()}
+                                        className="w-full bg-[#1A4D2E] text-white py-5 rounded-2xl font-bold text-lg hover:scale-[1.02] transition-transform shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {isValidatingCoupon ? 'Validando...' : 'Validar'}
                                     </button>
                                 </form>
                             )}
@@ -701,7 +803,13 @@ const LandingPage: React.FC<LandingPageProps> = ({
                             {/* Botão de Trial Grátis */}
                             <div className="mt-6 text-center">
                                 <button
-                                    onClick={() => setScreen('register')}
+                                    type="button"
+                                    onClick={() => {
+                                      setCouponCode('');
+                                      setCouponPreValidated(false);
+                                      setCouponValidateError(null);
+                                      setScreen('register');
+                                    }}
                                     className="text-sm text-[#1A4D2E] hover:text-[#4F6F52] underline decoration-2 underline-offset-4 transition-colors font-medium"
                                 >
                                     Não tenho código? Testar Grátis por 3 dias
