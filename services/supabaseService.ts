@@ -227,19 +227,24 @@ export const authService = {
       redirectTo,
     });
     if (error) {
+      const err = error as Error & { status?: number; code?: string };
       console.error('[Nutri.ai Auth] resetPasswordForEmail falhou:', {
-        status: (error as { status?: number }).status,
-        message: error.message,
-        name: error.name,
+        status: err.status,
+        code: err.code,
+        message: err.message,
+        name: err.name,
       });
-      const status = (error as { status?: number }).status;
-      const msg = (error.message || '').toLowerCase();
+      // No DevTools → Rede → pedido "recover" → separador Resposta: o JSON do Supabase costuma trazer o motivo real
+      console.error(
+        '[Nutri.ai Auth] Abra o pedido "recover" em Rede (Network) e leia o corpo JSON da resposta 500; em paralelo: Supabase → Logs → Auth (ou Log Explorer) com o mesmo horário.'
+      );
+      const status = err.status;
+      const msg = (err.message || '').toLowerCase();
       // 500 no /recover costuma ser falha ao enviar e-mail (SMTP), não do app web
       if (status === 500 || msg.includes('error sending') || msg.includes('smtp')) {
         console.error(
-          '[Nutri.ai Auth] Dica para quem mantém o projeto: Supabase → Authentication → Emails → SMTP ' +
-            '(Resend: host smtp.resend.com, porta 465, usuário resend, senha = API key; remetente em domínio verificado). ' +
-            'Logs → Auth no painel do Supabase.'
+          '[Nutri.ai Auth] Checklist SMTP: usuário = resend (literal), senha = API key Resend, host smtp.resend.com, porta 465, remetente = domínio verificado. ' +
+            'Desative temporariamente Auth Hooks → Send Email se existir. Authentication → Rate Limits (e-mail). Regrave SMTP e teste.'
         );
         throw new Error(
           'Não foi possível enviar o e-mail de recuperação neste momento. Tente de novo em alguns minutos. ' +
