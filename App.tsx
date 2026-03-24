@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { UserProfile, DailyPlan, LogItem, MealItem, WellnessState, AppView, ScanHistoryItem, Gender, ActivityLevel, Goal } from './types';
 import { generateDietPlan } from './services/geminiService';
-import { authService, planService, surveyService, profileService, logService } from './services/supabaseService';
+import { authService, planService, surveyService, profileService, logService, normalizeMealTypeForLog } from './services/supabaseService';
 
 // Components
 import LandingPage from './components/LandingPage';
@@ -209,9 +209,35 @@ const App: React.FC = () => {
     }
   }, []);
 
+  /** Evita que um GET antigo do diário sobrescreva o estado após um novo insert ou troca de usuário. */
+  const dailyLogSyncGenRef = useRef(0);
+
+  const invalidateInFlightDailyLogLoads = useCallback(() => {
+    dailyLogSyncGenRef.current += 1;
+  }, []);
+
+  const refreshDailyLogsForUser = useCallback(async (userId: string) => {
+    const gen = ++dailyLogSyncGenRef.current;
+    try {
+      const center = new Date();
+      const from = new Date(center);
+      from.setDate(from.getDate() - 4);
+      const to = new Date(center);
+      to.setDate(to.getDate() + 4);
+      const logs = await logService.getDailyLogsInRange(userId, from, to);
+      if (gen !== dailyLogSyncGenRef.current) return;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user || session.user.id !== userId) return;
+      setDailyLog(logs);
+    } catch (error) {
+      console.error('Erro ao carregar diário do usuário:', error);
+    }
+  }, []);
+
   const handleSignOut = useCallback(async () => {
     try {
       clearRecoveryUrlPending();
+      invalidateInFlightDailyLogLoads();
       await authService.signOut();
       setIsAuthenticated(false);
       setIsDeveloper(false);
@@ -223,7 +249,7 @@ const App: React.FC = () => {
     } catch (error) {
       console.error('Erro ao fazer logout:', error);
     }
-  }, []);
+  }, [invalidateInFlightDailyLogLoads]);
 
   // Verificar autenticação ao carregar o app
   useEffect(() => {
@@ -460,32 +486,29 @@ const App: React.FC = () => {
     loadUserData();
   }, [view, isAuthenticated, isDeveloper, isDevMode]);
 
-  // Carregar diário do dia ao autenticar/entrar nas telas principais
+  // Carregar diário (janela de dias alinhada ao calendário do Meu Diário) ao autenticar / mudar de tela
   useEffect(() => {
-    const loadDailyLogs = async () => {
-      if (!isAuthenticated) {
-        setDailyLog([]);
-        return;
-      }
+    if (!isAuthenticated) {
+      invalidateInFlightDailyLogLoads();
+      setDailyLog([]);
+      return;
+    }
 
-      // Evita carregar em telas públicas
-      if (view === 'landing' || view === 'onboarding' || view === 'generating') {
-        return;
-      }
+    if (view === 'landing' || view === 'onboarding' || view === 'generating') {
+      return;
+    }
 
-      try {
-        const user = await authService.getCurrentUser();
-        if (!user) return;
+    let cancelled = false;
+    void (async () => {
+      const user = await authService.getCurrentUser();
+      if (!user || cancelled) return;
+      await refreshDailyLogsForUser(user.id);
+    })();
 
-        const logs = await logService.getDailyLogs(user.id);
-        setDailyLog(logs);
-      } catch (error) {
-        console.error('Erro ao carregar diário do usuário:', error);
-      }
+    return () => {
+      cancelled = true;
     };
-
-    loadDailyLogs();
-  }, [isAuthenticated, view]);
+  }, [isAuthenticated, view, refreshDailyLogsForUser, invalidateInFlightDailyLogLoads]);
 
   useEffect(() => {
       if (isGenerating) {
@@ -577,26 +600,36 @@ const App: React.FC = () => {
   };
 
   const handleAddFood = (item: MealItem, type: string) => {
+      invalidateInFlightDailyLogLoads();
+      const normalizedType = normalizeMealTypeForLog(type);
       const newItem: LogItem = {
           ...item,
           id: Date.now().toString(),
           timestamp: Date.now(),
-          type: type as any,
-          // Use provided emoji, or default to a generic one based on type
-          emoji: item.emoji || (type === "Breakfast" ? "🍳" : type === "Lunch" ? "🍗" : type === "Dinner" ? "🥗" : "🍎")
+          type: normalizedType,
+          emoji:
+            item.emoji ||
+            (normalizedType === 'Breakfast'
+              ? '🍳'
+              : normalizedType === 'Lunch'
+                ? '🍗'
+                : normalizedType === 'Dinner'
+                  ? '🥗'
+                  : '🍎'),
       };
-      
-      // 1. Add immediately (Optimistic UI) - Removed Image Generation
-      setDailyLog(prev => [...prev, newItem]);
 
-      // 2. Persist in Supabase
-      (async () => {
+      setDailyLog((prev) => [...prev, newItem]);
+
+      void (async () => {
         try {
           const user = await authService.getCurrentUser();
           if (!user) return;
           await logService.addLogItem(user.id, newItem);
+          await refreshDailyLogsForUser(user.id);
         } catch (error) {
           console.error('Erro ao persistir item no diário:', error);
+          const user = await authService.getCurrentUser();
+          if (user) await refreshDailyLogsForUser(user.id);
         }
       })();
   };
@@ -621,17 +654,20 @@ const App: React.FC = () => {
           emoji: item.emoji || "📸"
       };
       
-      setDailyLog(prev => [...prev, newItem]);
+      invalidateInFlightDailyLogLoads();
+      setDailyLog((prev) => [...prev, newItem]);
       setIsScannerOpen(false);
 
-      // Persist scan result in daily log
-      (async () => {
+      void (async () => {
         try {
           const user = await authService.getCurrentUser();
           if (!user) return;
           await logService.addLogItem(user.id, newItem);
+          await refreshDailyLogsForUser(user.id);
         } catch (error) {
           console.error('Erro ao persistir escaneamento no diário:', error);
+          const user = await authService.getCurrentUser();
+          if (user) await refreshDailyLogsForUser(user.id);
         }
       })();
   };

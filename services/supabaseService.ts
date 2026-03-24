@@ -1301,9 +1301,55 @@ export const planService = {
 // SERVIÇOS DE REGISTROS DIÁRIOS (LOGS)
 // ============================================
 
+/** Garante valor válido para o enum `meal_type` no Postgres (evita insert falhar com string da IA/voz). */
+export function normalizeMealTypeForLog(type: string | undefined | null): LogItem['type'] {
+  const allowed: LogItem['type'][] = ['Breakfast', 'Lunch', 'Dinner', 'Snack', 'Other'];
+  if (!type || typeof type !== 'string') return 'Other';
+  const t = type.trim();
+  const byExact = allowed.find((m) => m === t);
+  if (byExact) return byExact;
+  const lower = t.toLowerCase();
+  const byCi = allowed.find((m) => m.toLowerCase() === lower);
+  if (byCi) return byCi;
+  const pt: Record<string, LogItem['type']> = {
+    café: 'Breakfast',
+    cafe: 'Breakfast',
+    'café da manhã': 'Breakfast',
+    'cafe da manha': 'Breakfast',
+    manhã: 'Breakfast',
+    manha: 'Breakfast',
+    almoço: 'Lunch',
+    almoco: 'Lunch',
+    jantar: 'Dinner',
+    lanche: 'Snack',
+    snack: 'Snack',
+  };
+  const ptHit = pt[lower];
+  if (ptHit) return ptHit;
+  return 'Other';
+}
+
+function mapDailyLogRow(item: any): LogItem {
+  return {
+    id: item.id,
+    name: item.name,
+    calories: item.calories,
+    macros: {
+      protein: Number(item.protein),
+      carbs: Number(item.carbs),
+      fats: Number(item.fats),
+    },
+    description: item.description || '',
+    type: normalizeMealTypeForLog(item.meal_type),
+    image: item.image || undefined,
+    timestamp: new Date(item.timestamp).getTime(),
+  };
+}
+
 export const logService = {
   // Adicionar item ao log diário
   async addLogItem(userId: string, logItem: LogItem) {
+    const mealType = normalizeMealTypeForLog(logItem.type);
     const { data, error } = await supabase
       .from('daily_logs')
       .insert({
@@ -1314,7 +1360,7 @@ export const logService = {
         carbs: logItem.macros.carbs,
         fats: logItem.macros.fats,
         description: logItem.description || null,
-        meal_type: logItem.type,
+        meal_type: mealType,
         image: logItem.image || null,
         timestamp: new Date(logItem.timestamp).toISOString(),
       })
@@ -1325,36 +1371,44 @@ export const logService = {
     return data;
   },
 
-  // Carregar logs do dia
-  async getDailyLogs(userId: string, date?: Date): Promise<LogItem[]> {
-    const targetDate = date || new Date();
-    const startOfDay = new Date(targetDate.setHours(0, 0, 0, 0)).toISOString();
-    const endOfDay = new Date(targetDate.setHours(23, 59, 59, 999)).toISOString();
+  /** Logs entre dois dias (calendário local), inclusive. */
+  async getDailyLogsInRange(userId: string, rangeStart: Date, rangeEnd: Date): Promise<LogItem[]> {
+    const start = new Date(
+      rangeStart.getFullYear(),
+      rangeStart.getMonth(),
+      rangeStart.getDate(),
+      0,
+      0,
+      0,
+      0
+    );
+    const end = new Date(
+      rangeEnd.getFullYear(),
+      rangeEnd.getMonth(),
+      rangeEnd.getDate(),
+      23,
+      59,
+      59,
+      999
+    );
 
     const { data, error } = await supabase
       .from('daily_logs')
       .select('*')
       .eq('user_id', userId)
-      .gte('timestamp', startOfDay)
-      .lte('timestamp', endOfDay)
+      .gte('timestamp', start.toISOString())
+      .lte('timestamp', end.toISOString())
       .order('timestamp', { ascending: false });
 
     if (error) throw error;
 
-    return (data || []).map((item: any) => ({
-      id: item.id,
-      name: item.name,
-      calories: item.calories,
-      macros: {
-        protein: Number(item.protein),
-        carbs: Number(item.carbs),
-        fats: Number(item.fats),
-      },
-      description: item.description || '',
-      type: item.meal_type,
-      image: item.image || undefined,
-      timestamp: new Date(item.timestamp).getTime(),
-    }));
+    return (data || []).map(mapDailyLogRow);
+  },
+
+  // Carregar logs do dia
+  async getDailyLogs(userId: string, date?: Date): Promise<LogItem[]> {
+    const d = date ? new Date(date) : new Date();
+    return logService.getDailyLogsInRange(userId, d, d);
   },
 
   // Deletar item do log
