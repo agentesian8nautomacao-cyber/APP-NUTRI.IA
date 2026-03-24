@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import { AppView } from '../types';
 
+const SHOW_PERSONAL_NUTRI = false;
+
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
@@ -31,7 +33,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, currentView, onNavig
     { id: 'dashboard', label: 'Início', icon: Home },
     { id: 'diet_plan', label: 'Meu Plano Alimentar', icon: ScrollText },
     { id: 'smart_meal', label: 'Refeição Inteligente', icon: UtensilsCrossed },
-    { id: 'personal_chat', label: 'Personal Nutri', icon: Dumbbell },
+    ...(SHOW_PERSONAL_NUTRI ? [{ id: 'personal_chat', label: 'Personal Nutri', icon: Dumbbell }] : []),
     { id: 'progress', label: 'Progresso', icon: TrendingUp },
     { id: 'wellness', label: 'Plano de Bem-estar', icon: Heart },
     { id: 'challenges', label: 'Desafios', icon: Trophy },
