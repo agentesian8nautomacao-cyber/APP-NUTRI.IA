@@ -2,7 +2,15 @@
 import React, { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { UserProfile, DailyPlan, LogItem, MealItem, WellnessState, AppView, ScanHistoryItem, Gender, ActivityLevel, Goal } from './types';
 import { generateDietPlan } from './services/geminiService';
-import { authService, planService, profileService, logService, normalizeMealTypeForLog } from './services/supabaseService';
+import {
+  authService,
+  planService,
+  profileService,
+  logService,
+  normalizeMealTypeForLog,
+  wellnessService,
+} from './services/supabaseService';
+import { startNutriNotificationScheduler } from './services/notificationService';
 
 // Sidebar permanece estático para não sumir ao trocar de rota (Suspense por vista).
 import Sidebar from './components/Sidebar';
@@ -193,6 +201,9 @@ const App: React.FC = () => {
   /** Sessão de recuperação de senha (link do e-mail Supabase). */
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
 
+  const wellnessRef = useRef(wellness);
+  wellnessRef.current = wellness;
+
   // --- Effects ---
   
   // Lista de desenvolvedores com acesso completo
@@ -266,6 +277,52 @@ const App: React.FC = () => {
       console.error('Erro ao fazer logout:', error);
     }
   }, [invalidateInFlightDailyLogLoads]);
+
+  // Carregar bem-estar do Supabase e iniciar lembretes (notificações do navegador) quando autenticado
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    let cancelled = false;
+    let stopNotifications: (() => void) | undefined;
+
+    void (async () => {
+      const user = await authService.getCurrentUser();
+      if (!user || cancelled) return;
+
+      try {
+        const w = await wellnessService.getWellness(user.id);
+        const times = w
+          ? w.notificationTimes
+          : await wellnessService.getNotificationTimes(user.id);
+        if (!cancelled) {
+          setWellness((prev) => ({
+            ...prev,
+            ...(w
+              ? {
+                  mood: w.mood,
+                  waterGlasses: w.waterGlasses,
+                  habits: w.habits?.length ? w.habits : prev.habits,
+                  sleepHours: w.sleepHours,
+                  sleepQuality: w.sleepQuality,
+                  notifications: w.notifications,
+                }
+              : {}),
+            notificationTimes: times,
+          }));
+        }
+      } catch (e) {
+        console.warn('Não foi possível carregar bem-estar do servidor:', e);
+      }
+
+      if (cancelled) return;
+      stopNotifications = startNutriNotificationScheduler(user.id, () => wellnessRef.current);
+    })();
+
+    return () => {
+      cancelled = true;
+      stopNotifications?.();
+    };
+  }, [isAuthenticated]);
 
   // Verificar autenticação ao carregar o app
   useEffect(() => {

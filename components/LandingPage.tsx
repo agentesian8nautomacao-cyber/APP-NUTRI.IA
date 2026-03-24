@@ -297,27 +297,12 @@ const LandingPage: React.FC<LandingPageProps> = ({
   return (
     <div className="min-h-screen bg-[#F5F1E8] text-[#1A1A1A] font-sans relative overflow-hidden flex flex-col">
         
-        {/* --- TOPOGRAPHIC BACKGROUND LINES (DESIGN ELEMENT) --- */}
+        {/* Fundo suave (sem traços SVG esticados — evitam efeito de listras em algumas resoluções) */}
         {screen === 'home' && (
-            <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
-                <svg 
-                    className="w-full h-full opacity-[0.06]" 
-                    viewBox="0 0 1440 900" 
-                    xmlns="http://www.w3.org/2000/svg" 
-                    preserveAspectRatio="none"
-                >
-                    <g stroke="black" strokeWidth="1.2" fill="none" className="animate-[breathe_12s_ease-in-out_infinite]">
-                        {/* Organic Curves */}
-                        <path d="M-200 600 C 200 500, 600 800, 1600 400" />
-                        <path d="M-200 650 C 250 550, 650 850, 1600 450" />
-                        <path d="M-200 700 C 300 600, 700 900, 1600 500" />
-                        
-                        <path d="M-200 200 C 500 100, 900 400, 1600 100" />
-                        <path d="M-200 250 C 550 150, 950 450, 1600 150" />
-                        
-                        <path d="M1440 0 C 1000 300, 600 100, -100 350" />
-                    </g>
-                </svg>
+            <div className="absolute inset-0 overflow-hidden pointer-events-none z-0" aria-hidden>
+                <div className="absolute -top-[20%] -right-[15%] h-[55vmin] w-[55vmin] rounded-full bg-[#1A4D2E]/[0.07] blur-[80px]" />
+                <div className="absolute top-[35%] -left-[20%] h-[45vmin] w-[45vmin] rounded-full bg-[#4F6F52]/[0.08] blur-[72px]" />
+                <div className="absolute -bottom-[25%] right-[10%] h-[50vmin] w-[50vmin] rounded-full bg-[#C4B8A5]/[0.35] blur-[90px]" />
             </div>
         )}
 
@@ -933,7 +918,6 @@ const LandingPage: React.FC<LandingPageProps> = ({
                     {/* Breathing & Shimmer Animation Style */}
                     <style>{`
                         @keyframes shimmer { 0% { transform: translateX(-150%); } 100% { transform: translateX(200%); } }
-                        @keyframes breathe { 0%, 100% { transform: scale(1); opacity: 0.8; } 50% { transform: scale(1.02); opacity: 0.6; } }
                     `}</style>
                 </div>
             )}

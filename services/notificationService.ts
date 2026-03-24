@@ -1,24 +1,23 @@
 /**
- * Serviço de Notificações
- * 
- * NOTA: Para implementação completa, é necessário:
- * 1. Configurar Firebase Cloud Messaging (FCM) ou OneSignal
- * 2. Solicitar permissão do usuário
- * 3. Registrar token de dispositivo
- * 4. Enviar notificações via backend
- * 
- * Esta é uma implementação básica que pode ser expandida.
+ * Notificações Nutri.ai (Web Notifications API).
+ *
+ * Funciona enquanto o utilizador tem o site aberto (ou PWA em segundo plano, conforme o SO).
+ * Push com app completamente fechado exige FCM/OneSignal + backend (não incluído aqui).
  */
 
 import { supabase } from './supabaseClient';
 import { limitsService } from './supabaseService';
+import type { WellnessState } from '../types';
+
+function todayISO(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
 /**
- * Solicita permissão para notificações
+ * Solicita permissão para notificações do navegador.
  */
 export async function requestNotificationPermission(): Promise<boolean> {
-  if (!('Notification' in window)) {
-    console.warn('Este navegador não suporta notificações');
+  if (typeof window === 'undefined' || !('Notification' in window)) {
     return false;
   }
 
@@ -27,7 +26,6 @@ export async function requestNotificationPermission(): Promise<boolean> {
   }
 
   if (Notification.permission === 'denied') {
-    console.warn('Permissão de notificações negada');
     return false;
   }
 
@@ -36,69 +34,126 @@ export async function requestNotificationPermission(): Promise<boolean> {
 }
 
 /**
- * Envia notificação local (browser)
+ * Notificação local (sistema), se a permissão foi concedida.
  */
 export function showLocalNotification(title: string, options?: NotificationOptions) {
-  if (!('Notification' in window) || Notification.permission !== 'granted') {
+  if (typeof window === 'undefined' || !('Notification' in window) || Notification.permission !== 'granted') {
     return;
   }
 
-  new Notification(title, {
-    icon: '/favicon.ico',
-    badge: '/favicon.ico',
-    ...options,
-  });
+  try {
+    new Notification(title, {
+      icon: '/favicon.ico',
+      badge: '/favicon.ico',
+      ...options,
+    });
+  } catch (e) {
+    console.warn('Falha ao mostrar notificação:', e);
+  }
+}
+
+function sessionDedupe(key: string): boolean {
+  if (sessionStorage.getItem(key)) return true;
+  sessionStorage.setItem(key, '1');
+  return false;
+}
+
+function localDedupe(key: string): boolean {
+  if (localStorage.getItem(key)) return true;
+  localStorage.setItem(key, '1');
+  return false;
 }
 
 /**
- * Verifica se usuário tem minutos restantes e envia notificação se necessário
+ * Minutos de voz baixos ou esgotados (máx. um aviso por tipo / dia nesta sessão).
  */
 export async function checkAndNotifyVoiceMinutes(userId: string) {
   try {
     const balances = await limitsService.getVoiceBalances(userId);
-    
     if (!balances) return;
 
-    // Notificar quando restam menos de 5 minutos
     const remainingMinutes = Math.floor(balances.totalSeconds / 60);
-    
+
     if (remainingMinutes > 0 && remainingMinutes <= 5 && !balances.isVip) {
-      showLocalNotification('⏰ Minutos de Voz', {
-        body: `Você tem apenas ${remainingMinutes} minuto(s) restante(s) hoje. Compre mais tempo para continuar!`,
-        tag: 'voice-minutes-low',
+      const k = `nutri-voice-low-${userId}-${todayISO()}`;
+      if (sessionDedupe(k)) return;
+      showLocalNotification('⏰ Minutos de voz', {
+        body: `Restam cerca de ${remainingMinutes} minuto(s) hoje. Recarregue para continuar sem interrupções.`,
+        tag: 'nutri-voice-low',
       });
     }
 
-    // Notificar quando minutos acabaram
     if (remainingMinutes === 0 && !balances.isVip) {
-      showLocalNotification('🔒 Limite Diário Atingido', {
-        body: 'Você atingiu o limite de 15 minutos hoje. Compre mais tempo para continuar sua consultoria!',
-        tag: 'voice-minutes-exhausted',
+      const k = `nutri-voice-out-${userId}-${todayISO()}`;
+      if (sessionDedupe(k)) return;
+      showLocalNotification('🔒 Limite diário de voz', {
+        body: 'Atingiu o limite de minutos de hoje. Veja opções de recarga no app.',
+        tag: 'nutri-voice-out',
       });
     }
   } catch (error) {
-    console.error('Erro ao verificar minutos:', error);
+    console.error('Erro ao verificar minutos de voz:', error);
   }
 }
 
+function parseHHMM(s: string | undefined): { h: number; m: number } | null {
+  if (!s || typeof s !== 'string') return null;
+  const parts = s.trim().split(':');
+  const h = parseInt(parts[0], 10);
+  const m = parseInt(parts[1] ?? '0', 10);
+  if (Number.isNaN(h) || Number.isNaN(m)) return null;
+  return { h, m };
+}
+
 /**
- * Envia notificação de lembrete diário
+ * Lembretes de água / sono / refeição no horário configurado em Configurações (minuto a minuto).
  */
-export function sendDailyReminder() {
-  const now = new Date();
-  const hour = now.getHours();
-
-  // Enviar lembrete às 9h da manhã
-  if (hour === 9) {
-    showLocalNotification('🌅 Bom Dia!', {
-      body: 'Você tem 15 minutos gratuitos de consultoria hoje. Que tal começar agora?',
-      tag: 'daily-reminder',
-    });
+export function tickScheduledWellnessReminders(getWellness: () => WellnessState) {
+  if (typeof window === 'undefined' || !('Notification' in window) || Notification.permission !== 'granted') {
+    return;
   }
+
+  const w = getWellness();
+  const now = new Date();
+  const hm = now.getHours() * 60 + now.getMinutes();
+
+  const fire = (key: 'water' | 'sleep' | 'meals', title: string, body: string, tag: string) => {
+    if (!w.notifications[key]) return;
+    const parsed = parseHHMM(w.notificationTimes[key]);
+    if (!parsed) return;
+    if (parsed.h * 60 + parsed.m !== hm) return;
+    const dedupe = `nutri-well-${key}-${todayISO()}`;
+    if (sessionDedupe(dedupe)) return;
+    showLocalNotification(title, { body, tag });
+  };
+
+  fire('water', 'Hora de se hidratar! 💧', 'Beba um copo de água agora para manter o foco.', 'nutri-water');
+  fire('sleep', 'Hora do descanso 🌙', 'Desacelere e prepare-se para dormir com uma rotina tranquila.', 'nutri-sleep');
+  fire('meals', 'Hora de comer! 🥗', 'Reserve um momento para uma refeição saudável.', 'nutri-meals');
 }
 
 /**
- * Envia notificação de confirmação de recarga
+ * Lembrete único por dia (janela 9h–9h05) para usar os minutos de voz gratuitos.
+ */
+export function sendDailyVoiceReminderIfNeeded() {
+  if (typeof window === 'undefined' || !('Notification' in window) || Notification.permission !== 'granted') {
+    return;
+  }
+
+  const now = new Date();
+  if (now.getHours() !== 9 || now.getMinutes() > 5) return;
+
+  const k = `nutri-daily-voice-${todayISO()}`;
+  if (localDedupe(k)) return;
+
+  showLocalNotification('🌅 Bom dia!', {
+    body: 'Tem minutos de consultoria por voz disponíveis hoje. Que tal registar uma refeição ou falar com o Nutri.ai?',
+    tag: 'nutri-daily-reminder',
+  });
+}
+
+/**
+ * Notificação após recarga confirmada (chamar no cliente quando souber que o pagamento foi concluído).
  */
 export function notifyRechargeConfirmed(rechargeType: string, minutes: number) {
   const typeNames: Record<string, string> = {
@@ -109,14 +164,17 @@ export function notifyRechargeConfirmed(rechargeType: string, minutes: number) {
 
   const typeName = typeNames[rechargeType] || 'Recarga';
 
-  showLocalNotification('✅ Recarga Confirmada', {
-    body: `${typeName} ativada! ${minutes === -1 ? 'Você tem acesso ilimitado por 30 dias!' : `+${minutes} minutos adicionados ao seu saldo.`}`,
-    tag: 'recharge-confirmed',
+  showLocalNotification('✅ Recarga confirmada', {
+    body:
+      minutes === -1
+        ? `${typeName} ativa. Acesso ilimitado por voz no período contratado.`
+        : `${typeName}: +${minutes} minutos adicionados.`,
+    tag: 'nutri-recharge',
   });
 }
 
 /**
- * Verifica e notifica sobre renovação de assinatura
+ * Avisos de renovação de assinatura (uma vez por tipo / ciclo de expiração).
  */
 export async function checkAndNotifySubscriptionRenewal(userId: string) {
   try {
@@ -128,8 +186,11 @@ export async function checkAndNotifySubscriptionRenewal(userId: string) {
 
     if (error || !data) return;
 
-    // Apenas para planos pagos
-    if (!['monthly', 'annual', 'academy_starter', 'academy_growth', 'academy_pro', 'personal_team'].includes(data.plan_type)) {
+    if (
+      !['monthly', 'annual', 'academy_starter', 'academy_growth', 'academy_pro', 'personal_team'].includes(
+        data.plan_type
+      )
+    ) {
       return;
     }
 
@@ -138,66 +199,90 @@ export async function checkAndNotifySubscriptionRenewal(userId: string) {
     const expiryDate = new Date(data.expiry_date);
     const now = new Date();
     const daysUntilExpiry = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    const expiryKey = expiryDate.toISOString().slice(0, 10);
 
-    // Notificar 7 dias antes
-    if (daysUntilExpiry === 7) {
-      showLocalNotification('📅 Renovação de Assinatura', {
-        body: `Sua assinatura expira em 7 dias. A renovação será automática se você tiver pagamento recorrente ativo.`,
-        tag: 'subscription-renewal-7days',
-      });
-    }
+    const maybeNotify = (days: number, title: string, body: string, tag: string) => {
+      if (daysUntilExpiry !== days) return;
+      const k = `nutri-sub-${userId}-${tag}-${expiryKey}`;
+      if (localDedupe(k)) return;
+      showLocalNotification(title, { body, tag });
+    };
 
-    // Notificar 3 dias antes
-    if (daysUntilExpiry === 3) {
-      showLocalNotification('⏰ Renovação Próxima', {
-        body: `Sua assinatura expira em 3 dias. Verifique se seu pagamento recorrente está ativo.`,
-        tag: 'subscription-renewal-3days',
-      });
-    }
+    maybeNotify(
+      7,
+      '📅 Renovação da assinatura',
+      'A sua assinatura renova ou termina em 7 dias. Confirme o pagamento recorrente na sua conta.',
+      'sub-7'
+    );
 
-    // Notificar 1 dia antes
-    if (daysUntilExpiry === 1) {
-      showLocalNotification('🔔 Renovação Amanhã', {
-        body: `Sua assinatura expira amanhã. A renovação será processada automaticamente se houver pagamento ativo.`,
-        tag: 'subscription-renewal-1day',
-      });
-    }
+    maybeNotify(
+      3,
+      '⏰ Renovação próxima',
+      'Faltam 3 dias para a data de renovação. Verifique o método de pagamento.',
+      'sub-3'
+    );
 
-    // Notificar se expirou
+    maybeNotify(
+      1,
+      '🔔 Renovação amanhã',
+      'A renovação da assinatura está prevista para breve. Confirme que o pagamento está ativo.',
+      'sub-1'
+    );
+
     if (daysUntilExpiry <= 0 && data.subscription_status === 'active') {
-      showLocalNotification('⚠️ Assinatura Expirada', {
-        body: `Sua assinatura expirou. Verifique seu método de pagamento ou entre em contato com o suporte.`,
-        tag: 'subscription-expired',
+      const k = `nutri-sub-exp-${userId}-${expiryKey}`;
+      if (localDedupe(k)) return;
+      showLocalNotification('⚠️ Assinatura expirada', {
+        body: 'A data de validade passou. Atualize o pagamento ou contacte o suporte.',
+        tag: 'nutri-sub-expired',
       });
     }
   } catch (error) {
-    console.error('Erro ao verificar renovação:', error);
+    console.error('Erro ao verificar renovação da assinatura:', error);
   }
 }
 
+export type NutriNotificationStop = () => void;
+
 /**
- * Inicializa sistema de notificações
+ * Inicia verificações periódicas. Devolve função para parar (logout / unmount).
  */
-export async function initializeNotifications(userId: string) {
-  // Solicitar permissão
-  await requestNotificationPermission();
+export function startNutriNotificationScheduler(
+  userId: string,
+  getWellness: () => WellnessState
+): NutriNotificationStop {
+  if (typeof window === 'undefined') {
+    return () => {};
+  }
 
-  // Verificar minutos periodicamente (a cada 5 minutos)
-  setInterval(() => {
-    checkAndNotifyVoiceMinutes(userId);
-  }, 5 * 60 * 1000);
+  const intervalIds: number[] = [];
 
-  // Verificar renovação de assinatura (a cada hora)
-  setInterval(() => {
-    checkAndNotifySubscriptionRenewal(userId);
-  }, 60 * 60 * 1000);
+  intervalIds.push(
+    window.setInterval(() => {
+      void checkAndNotifyVoiceMinutes(userId);
+    }, 5 * 60 * 1000)
+  );
 
-  // Verificar renovação imediatamente ao inicializar
-  checkAndNotifySubscriptionRenewal(userId);
+  intervalIds.push(
+    window.setInterval(() => {
+      void checkAndNotifySubscriptionRenewal(userId);
+    }, 60 * 60 * 1000)
+  );
 
-  // Lembrete diário
-  setInterval(() => {
-    sendDailyReminder();
-  }, 60 * 60 * 1000); // Verificar a cada hora
+  intervalIds.push(
+    window.setInterval(() => {
+      tickScheduledWellnessReminders(getWellness);
+      sendDailyVoiceReminderIfNeeded();
+    }, 60 * 1000)
+  );
+
+  void requestNotificationPermission();
+  void checkAndNotifyVoiceMinutes(userId);
+  void checkAndNotifySubscriptionRenewal(userId);
+  tickScheduledWellnessReminders(getWellness);
+  sendDailyVoiceReminderIfNeeded();
+
+  return () => {
+    intervalIds.forEach((id) => window.clearInterval(id));
+  };
 }
-

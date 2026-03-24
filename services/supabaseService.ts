@@ -1468,7 +1468,57 @@ export const scanService = {
 // SERVIÇOS DE BEM-ESTAR (WELLNESS)
 // ============================================
 
+const DEFAULT_NOTIFICATION_TIMES: WellnessState['notificationTimes'] = {
+  water: '09:00',
+  sleep: '22:00',
+  meals: '12:00',
+};
+
+async function loadNotificationTimesFromProfile(
+  userId: string
+): Promise<WellnessState['notificationTimes']> {
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .select('notification_time_water, notification_time_sleep, notification_time_meals')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error) {
+    console.warn('Ler horários de notificação em user_profiles:', error.message);
+    return { ...DEFAULT_NOTIFICATION_TIMES };
+  }
+
+  if (!data) {
+    return { ...DEFAULT_NOTIFICATION_TIMES };
+  }
+
+  return {
+    water: data.notification_time_water?.trim() || DEFAULT_NOTIFICATION_TIMES.water,
+    sleep: data.notification_time_sleep?.trim() || DEFAULT_NOTIFICATION_TIMES.sleep,
+    meals: data.notification_time_meals?.trim() || DEFAULT_NOTIFICATION_TIMES.meals,
+  };
+}
+
 export const wellnessService = {
+  /** Horários de lembrete guardados em `user_profiles` (sincronizam entre dispositivos). */
+  async getNotificationTimes(userId: string): Promise<WellnessState['notificationTimes']> {
+    return loadNotificationTimesFromProfile(userId);
+  },
+
+  async saveNotificationTimes(userId: string, times: WellnessState['notificationTimes']) {
+    const { error } = await supabase
+      .from('user_profiles')
+      .update({
+        notification_time_water: times.water,
+        notification_time_sleep: times.sleep,
+        notification_time_meals: times.meals,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', userId);
+
+    if (error) throw error;
+  },
+
   // Salvar estado de bem-estar
   async saveWellness(userId: string, wellness: WellnessState, date?: Date) {
     const trackingDate = date ? date.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
@@ -1491,6 +1541,22 @@ export const wellnessService = {
       .single();
 
     if (trackingError) throw trackingError;
+
+    const { error: profileTimesError } = await supabase
+      .from('user_profiles')
+      .update({
+        notification_time_water: wellness.notificationTimes.water,
+        notification_time_sleep: wellness.notificationTimes.sleep,
+        notification_time_meals: wellness.notificationTimes.meals,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', userId);
+    if (profileTimesError) {
+      console.warn(
+        'Horários de notificação não atualizados em user_profiles (execute supabase_user_profiles_notification_times.sql):',
+        profileTimesError.message
+      );
+    }
 
     // Deletar hábitos antigos
     await supabase
@@ -1520,19 +1586,27 @@ export const wellnessService = {
   async getWellness(userId: string, date?: Date): Promise<WellnessState | null> {
     const trackingDate = date ? date.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
 
-    const { data: tracking, error } = await supabase
-      .from('wellness_tracking')
-      .select(`
+    const [trackingRes, notificationTimes] = await Promise.all([
+      supabase
+        .from('wellness_tracking')
+        .select(
+          `
         *,
         wellness_habits (*)
-      `)
-      .eq('user_id', userId)
-      .eq('tracking_date', trackingDate)
-      .single();
+      `
+        )
+        .eq('user_id', userId)
+        .eq('tracking_date', trackingDate)
+        .maybeSingle(),
+      loadNotificationTimesFromProfile(userId),
+    ]);
 
-    if (error) {
-      if (error.code === 'PGRST116') return null;
-      throw error;
+    const { data: tracking, error } = trackingRes;
+
+    if (error) throw error;
+
+    if (!tracking) {
+      return null;
     }
 
     return {
@@ -1543,13 +1617,14 @@ export const wellnessService = {
         text: h.habit_text,
         completed: h.completed,
       })),
-      sleepHours: tracking.sleep_hours ? Number(tracking.sleep_hours) : null,
-      sleepQuality: tracking.sleep_quality || null,
+      sleepHours: tracking.sleep_hours != null ? Number(tracking.sleep_hours) : 7.5,
+      sleepQuality: tracking.sleep_quality != null ? tracking.sleep_quality : 85,
       notifications: {
-        water: tracking.notification_water,
-        sleep: tracking.notification_sleep,
-        meals: tracking.notification_meals,
+        water: tracking.notification_water ?? true,
+        sleep: tracking.notification_sleep ?? true,
+        meals: tracking.notification_meals ?? false,
       },
+      notificationTimes,
     };
   },
 };

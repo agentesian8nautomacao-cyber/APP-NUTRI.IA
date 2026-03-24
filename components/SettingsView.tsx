@@ -1,7 +1,8 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Bell, Droplets, Moon, Utensils, Clock, Play, Info, Settings, X, ChevronRight, Shield, LogOut, Trash2, MessageSquare, Bot, Save, AudioLines, FileText, Upload } from 'lucide-react';
 import { WellnessState, UserProfile } from '../types';
+import { authService, wellnessService } from '../services/supabaseService';
 
 interface SettingsViewProps {
     state: WellnessState;
@@ -22,6 +23,25 @@ const SettingsView: React.FC<SettingsViewProps> = ({ state, onUpdate, userProfil
   const [isSaved, setIsSaved] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const user = await authService.getCurrentUser();
+          if (!user) return;
+          await wellnessService.saveNotificationTimes(user.id, state.notificationTimes);
+        } catch (err) {
+          console.warn('Não foi possível guardar horários de notificação (confirme a migração SQL no Supabase):', err);
+        }
+      })();
+    }, 700);
+    return () => window.clearTimeout(t);
+  }, [
+    state.notificationTimes.water,
+    state.notificationTimes.sleep,
+    state.notificationTimes.meals,
+  ]);
 
   const toggleNotification = async (key: keyof typeof state.notifications) => {
       const isEnabling = !state.notifications[key];

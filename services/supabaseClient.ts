@@ -86,6 +86,9 @@ export type Database = {
           last_active_date: string;
           avatar: string | null;
           chef_avatar: string | null;
+          notification_time_water?: string | null;
+          notification_time_sleep?: string | null;
+          notification_time_meals?: string | null;
           created_at: string;
           updated_at: string;
         };
