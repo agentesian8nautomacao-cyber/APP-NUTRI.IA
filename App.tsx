@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { UserProfile, DailyPlan, LogItem, MealItem, WellnessState, AppView, ScanHistoryItem, Gender, ActivityLevel, Goal } from './types';
 import { generateDietPlan } from './services/geminiService';
-import { authService, planService, surveyService, profileService } from './services/supabaseService';
+import { authService, planService, surveyService, profileService, logService } from './services/supabaseService';
 
 // Components
 import LandingPage from './components/LandingPage';
@@ -217,6 +217,8 @@ const App: React.FC = () => {
       setIsDeveloper(false);
       setUserProfile(null);
       setDietPlan(null);
+      setDailyLog([]);
+      setScanHistory([]);
       setView('landing');
     } catch (error) {
       console.error('Erro ao fazer logout:', error);
@@ -458,6 +460,33 @@ const App: React.FC = () => {
     loadUserData();
   }, [view, isAuthenticated, isDeveloper, isDevMode]);
 
+  // Carregar diário do dia ao autenticar/entrar nas telas principais
+  useEffect(() => {
+    const loadDailyLogs = async () => {
+      if (!isAuthenticated) {
+        setDailyLog([]);
+        return;
+      }
+
+      // Evita carregar em telas públicas
+      if (view === 'landing' || view === 'onboarding' || view === 'generating') {
+        return;
+      }
+
+      try {
+        const user = await authService.getCurrentUser();
+        if (!user) return;
+
+        const logs = await logService.getDailyLogs(user.id);
+        setDailyLog(logs);
+      } catch (error) {
+        console.error('Erro ao carregar diário do usuário:', error);
+      }
+    };
+
+    loadDailyLogs();
+  }, [isAuthenticated, view]);
+
   useEffect(() => {
       if (isGenerating) {
           const fruits = ['🍎', '🍌', '🍇', '🍊', '🍓', '🥑', '🥦', '🥕'];
@@ -559,6 +588,17 @@ const App: React.FC = () => {
       
       // 1. Add immediately (Optimistic UI) - Removed Image Generation
       setDailyLog(prev => [...prev, newItem]);
+
+      // 2. Persist in Supabase
+      (async () => {
+        try {
+          const user = await authService.getCurrentUser();
+          if (!user) return;
+          await logService.addLogItem(user.id, newItem);
+        } catch (error) {
+          console.error('Erro ao persistir item no diário:', error);
+        }
+      })();
   };
 
   const handleScanComplete = (item: MealItem, scannedImage: string) => {
@@ -583,6 +623,17 @@ const App: React.FC = () => {
       
       setDailyLog(prev => [...prev, newItem]);
       setIsScannerOpen(false);
+
+      // Persist scan result in daily log
+      (async () => {
+        try {
+          const user = await authService.getCurrentUser();
+          if (!user) return;
+          await logService.addLogItem(user.id, newItem);
+        } catch (error) {
+          console.error('Erro ao persistir escaneamento no diário:', error);
+        }
+      })();
   };
 
   const handleUpdateProfile = (updatedProfile: UserProfile) => {
