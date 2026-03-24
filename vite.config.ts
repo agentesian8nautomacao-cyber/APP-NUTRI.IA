@@ -28,5 +28,22 @@ export default defineConfig(({ mode }) => {
           '@': path.resolve(__dirname, '.'),
         },
       },
+      build: {
+        chunkSizeWarningLimit: 700,
+        rollupOptions: {
+          output: {
+            manualChunks(id) {
+              if (!id.includes('node_modules')) return;
+              if (id.includes('@supabase')) return 'supabase';
+              if (id.includes('@google')) return 'google-genai';
+              if (id.includes('lucide-react')) return 'lucide';
+              if (id.includes('recharts')) return 'recharts';
+              if (id.includes('node_modules/react-dom')) return 'react-vendor';
+              if (id.includes('node_modules/react/')) return 'react-vendor';
+              return 'vendor';
+            },
+          },
+        },
+      },
     };
 });

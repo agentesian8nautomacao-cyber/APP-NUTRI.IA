@@ -1,35 +1,51 @@
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { UserProfile, DailyPlan, LogItem, MealItem, WellnessState, AppView, ScanHistoryItem, Gender, ActivityLevel, Goal } from './types';
 import { generateDietPlan } from './services/geminiService';
-import { authService, planService, surveyService, profileService, logService, normalizeMealTypeForLog } from './services/supabaseService';
+import { authService, planService, profileService, logService, normalizeMealTypeForLog } from './services/supabaseService';
 
-// Components
-import LandingPage from './components/LandingPage';
+// Sidebar permanece estático para não sumir ao trocar de rota (Suspense por vista).
+import Sidebar from './components/Sidebar';
 import { supabase } from './services/supabaseClient';
 import { sessionIsPasswordRecovery } from './utils/authRecovery';
 import { urlHasSupabaseAuthCode, urlIndicatesPasswordRecoveryHash } from './utils/inviteUrlParams';
 import { clearRecoveryUrlPending, hasRecoveryUrlPending } from './utils/recoveryUrlCapture';
-import Onboarding from './components/Onboarding';
-import Sidebar from './components/Sidebar';
-import Dashboard from './components/Dashboard';
-import DietPlanView from './components/DietPlanView';
-import DiaryView from './components/DiaryView';
-import SmartMeal from './components/SmartMeal';
-import PlateAnalyzer from './components/PlateAnalyzer';
-import ProgressView from './components/ProgressView';
-import WellnessPlan from './components/WellnessPlan';
-import ChallengesView from './components/ChallengesView';
-import Library from './components/Library';
-import ChatAssistant from './components/ChatAssistant';
-import LiveConversation from './components/LiveConversation';
-import ProfileView from './components/ProfileView';
-import SettingsView from './components/SettingsView';
-import PersonalChat from './components/PersonalChat';
-import TrialExpiredModal from './components/TrialExpiredModal';
-import PrivacyView from './components/PrivacyView';
 
-import { MessageCircle, Camera, Home, Menu, BookOpen, Phone, User } from 'lucide-react';
+const LandingPage = lazy(() => import('./components/LandingPage'));
+const Onboarding = lazy(() => import('./components/Onboarding'));
+const Dashboard = lazy(() => import('./components/Dashboard'));
+const DietPlanView = lazy(() => import('./components/DietPlanView'));
+const DiaryView = lazy(() => import('./components/DiaryView'));
+const SmartMeal = lazy(() => import('./components/SmartMeal'));
+const PlateAnalyzer = lazy(() => import('./components/PlateAnalyzer'));
+const ProgressView = lazy(() => import('./components/ProgressView'));
+const WellnessPlan = lazy(() => import('./components/WellnessPlan'));
+const ChallengesView = lazy(() => import('./components/ChallengesView'));
+const Library = lazy(() => import('./components/Library'));
+const ChatAssistant = lazy(() => import('./components/ChatAssistant'));
+const LiveConversation = lazy(() => import('./components/LiveConversation'));
+const ProfileView = lazy(() => import('./components/ProfileView'));
+const SettingsView = lazy(() => import('./components/SettingsView'));
+const PersonalChat = lazy(() => import('./components/PersonalChat'));
+const TrialExpiredModal = lazy(() => import('./components/TrialExpiredModal'));
+const PrivacyView = lazy(() => import('./components/PrivacyView'));
+
+import { MessageCircle, Camera, Home, BookOpen, Phone, User } from 'lucide-react';
+
+const PageLoading: React.FC = () => (
+  <div className="min-h-screen bg-[#F5F1E8] flex items-center justify-center">
+    <div className="text-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1A4D2E] mx-auto mb-4" />
+      <p className="text-[#1A4D2E] font-medium">Carregando…</p>
+    </div>
+  </div>
+);
+
+const OverlayLoading: React.FC = () => (
+  <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#F5F1E8]/85 backdrop-blur-sm">
+    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1A4D2E]" />
+  </div>
+);
 
 // MOCK DATA FOR DEV SKIP
 const MOCK_USER: UserProfile = {
@@ -734,6 +750,7 @@ const App: React.FC = () => {
 
   if (view === 'landing') {
       return (
+        <Suspense fallback={<PageLoading />}>
         <LandingPage 
             passwordRecoveryActive={isPasswordRecovery}
             onPasswordRecoveryFinished={() => {
@@ -892,11 +909,16 @@ const App: React.FC = () => {
             onLogout={handleSignOut}
             isAuthenticated={isAuthenticated}
         />
+        </Suspense>
       );
   }
 
   if (view === 'onboarding') {
-      return <Onboarding onComplete={handleOnboardingComplete} />;
+      return (
+        <Suspense fallback={<PageLoading />}>
+          <Onboarding onComplete={handleOnboardingComplete} />
+        </Suspense>
+      );
   }
 
   if (view === 'generating') {
@@ -980,6 +1002,7 @@ const App: React.FC = () => {
             {view === 'dashboard' && (
                 <>
                     {userProfile && dietPlan ? (
+                <Suspense fallback={<PageLoading />}>
                 <Dashboard 
                     plan={dietPlan} 
                     user={userProfile} 
@@ -992,6 +1015,7 @@ const App: React.FC = () => {
                     onNavigate={setView}
                     onMenuClick={() => setIsSidebarOpen(true)}
                 />
+                </Suspense>
                     ) : (
                         <div className="min-h-screen bg-[#F5F1E8] flex items-center justify-center">
                             <div className="text-center">
@@ -1003,41 +1027,74 @@ const App: React.FC = () => {
                 </>
             )}
             {view === 'diet_plan' && dietPlan && (
+                <Suspense fallback={<PageLoading />}>
                 <DietPlanView 
                     plan={dietPlan} 
                     userProfile={userProfile}
                     onRegenerate={handleRegeneratePlan}
                     isNewUser={isNewUser}
                 />
+                </Suspense>
             )}
-            {view === 'diary' && dietPlan && <DiaryView plan={dietPlan} dailyLog={dailyLog} onAddFood={handleAddFood} />}
+            {view === 'diary' && dietPlan && (
+                <Suspense fallback={<PageLoading />}>
+                  <DiaryView plan={dietPlan} dailyLog={dailyLog} onAddFood={handleAddFood} />
+                </Suspense>
+            )}
             {view === 'smart_meal' && (
+                <Suspense fallback={<PageLoading />}>
                 <SmartMeal 
                     userProfile={userProfile}
                     onUpdateProfile={handleUpdateProfile}
                 />
+                </Suspense>
             )}
             {view === 'analyzer' && (
+                <Suspense fallback={<PageLoading />}>
                  <PlateAnalyzer 
                     onClose={() => setView('dashboard')} // Go back if close on full view
                     onAddFood={handleScanComplete}
                     history={scanHistory}
                  />
+                </Suspense>
             )}
             {view === 'personal_chat' && (
+                <Suspense fallback={<PageLoading />}>
                 <PersonalChat 
                     userProfile={userProfile} 
                     dailyLog={dailyLog}
                     wellness={wellness}
                     onBack={() => setView('dashboard')}
                 />
+                </Suspense>
             )}
-            {view === 'progress' && <ProgressView />}
-            {view === 'wellness' && <WellnessPlan state={wellness} onUpdate={setWellness} />}
-            {view === 'challenges' && <ChallengesView />}
-            {view === 'library' && <Library />}
-            {view === 'profile' && userProfile && <ProfileView user={userProfile} onUpdate={handleUpdateProfile} onBack={() => setView('dashboard')} />}
+            {view === 'progress' && (
+              <Suspense fallback={<PageLoading />}>
+                <ProgressView />
+              </Suspense>
+            )}
+            {view === 'wellness' && (
+              <Suspense fallback={<PageLoading />}>
+                <WellnessPlan state={wellness} onUpdate={setWellness} />
+              </Suspense>
+            )}
+            {view === 'challenges' && (
+              <Suspense fallback={<PageLoading />}>
+                <ChallengesView />
+              </Suspense>
+            )}
+            {view === 'library' && (
+              <Suspense fallback={<PageLoading />}>
+                <Library />
+              </Suspense>
+            )}
+            {view === 'profile' && userProfile && (
+              <Suspense fallback={<PageLoading />}>
+                <ProfileView user={userProfile} onUpdate={handleUpdateProfile} onBack={() => setView('dashboard')} />
+              </Suspense>
+            )}
             {view === 'settings' && userProfile && (
+                <Suspense fallback={<PageLoading />}>
                 <SettingsView 
                     state={wellness} 
                     onUpdate={setWellness} 
@@ -1046,9 +1103,12 @@ const App: React.FC = () => {
                     onOpenPrivacy={() => setView('security')}
                     onSignOut={handleSignOut}
                 />
+                </Suspense>
             )}
             {view === 'security' && (
+                <Suspense fallback={<PageLoading />}>
                 <PrivacyView onBack={() => setView(viewBeforeSecurityRef.current)} />
+                </Suspense>
             )}
         </main>
 
@@ -1105,14 +1165,17 @@ const App: React.FC = () => {
 
         {/* Overlays */}
         {isScannerOpen && (
+            <Suspense fallback={<OverlayLoading />}>
             <PlateAnalyzer 
                 onClose={() => setIsScannerOpen(false)} 
                 onAddFood={handleScanComplete}
                 history={scanHistory}
             />
+            </Suspense>
         )}
 
         {isChatOpen && (
+            <Suspense fallback={<OverlayLoading />}>
             <ChatAssistant 
                 onClose={() => setIsChatOpen(false)} 
                 onLiveCall={() => { 
@@ -1130,9 +1193,11 @@ const App: React.FC = () => {
                 onAddFood={handleAddFood}
                 isBlocked={!isDevMode && !isDeveloper && isTrialExpired}
             />
+            </Suspense>
         )}
 
         {isLiveOpen && (
+            <Suspense fallback={<OverlayLoading />}>
             <LiveConversation 
                 onClose={() => setIsLiveOpen(false)} 
                 userProfile={userProfile}
@@ -1141,14 +1206,17 @@ const App: React.FC = () => {
                 onAddFood={handleAddFood}
                 isBlocked={!isDevMode && !isDeveloper && isTrialExpired}
             />
+            </Suspense>
         )}
 
         {/* Modal de Trial Expirado */}
         {showTrialExpiredModal && (
+            <Suspense fallback={<OverlayLoading />}>
             <TrialExpiredModal
                 onClose={() => setShowTrialExpiredModal(false)}
                 onViewPlans={() => setShowTrialExpiredModal(false)}
             />
+            </Suspense>
         )}
 
 
