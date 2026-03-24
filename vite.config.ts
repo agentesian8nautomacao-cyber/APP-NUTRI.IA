@@ -24,6 +24,7 @@ export default defineConfig(({ mode }) => {
         'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
       },
       resolve: {
+        dedupe: ['react', 'react-dom'],
         alias: {
           '@': path.resolve(__dirname, '.'),
         },
@@ -32,15 +33,14 @@ export default defineConfig(({ mode }) => {
         chunkSizeWarningLimit: 700,
         rollupOptions: {
           output: {
+            // Não isolar react/react-dom nem um "vendor" genérico: isso quebra runtime
+            // (useState undefined) por ordem de chunks / múltiplas cópias implícitas.
             manualChunks(id) {
               if (!id.includes('node_modules')) return;
               if (id.includes('@supabase')) return 'supabase';
               if (id.includes('@google')) return 'google-genai';
               if (id.includes('lucide-react')) return 'lucide';
               if (id.includes('recharts')) return 'recharts';
-              if (id.includes('node_modules/react-dom')) return 'react-vendor';
-              if (id.includes('node_modules/react/')) return 'react-vendor';
-              return 'vendor';
             },
           },
         },
